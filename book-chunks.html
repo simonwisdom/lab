@@ -538,7 +538,7 @@
 
     function downloadSummaries() {
         const summaryText = currentSummaries
-            .map((summary, idx) => `Chunk ${idx + 1}:\n${summary}\n`)
+            .map(summary => `${summary}\n`)
             .join('\n---\n\n');
         
         const blob = new Blob([summaryText], { type: 'text/plain' });
