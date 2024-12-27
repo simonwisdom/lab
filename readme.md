@@ -1,5 +1,4 @@
 <link rel="stylesheet" href="style.css">
-<title> lab.simonwisdom.com </title>
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
  
