@@ -1,8 +1,8 @@
-<link rel="stylesheet" href="style.css">
-
 ---
 title: lab.simonwisdom.com
 ---
+
+<link rel="stylesheet" href="style.css">
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
  
