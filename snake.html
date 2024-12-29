@@ -4,8 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="style.css">
-  <title>Improved Snake Game</title>
+  <title>SW's Snake</title>
   <style>
+    /* Center container and ensure it stays centered */
+    .container {
+      margin: 0 auto;
+      text-align: center;
+      width: fit-content;
+    }
     #game-board {
       width: 400px;
       height: 400px;
@@ -13,6 +19,7 @@
       position: relative;
       cursor: pointer;
       outline: none;
+      margin: 0 auto;
     }
     .snake {
       position: absolute;
@@ -60,15 +67,22 @@
       margin: 0 auto;
     }
     .btn-primary {
-      background-color: #111; color: white; border: none;
-      padding: 8px 16px; border-radius: 4px; cursor: pointer;
+      background-color: #111;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
       margin-top: 10px;
     }
     .btn-primary:hover {
       background-color: #333;
     }
+    /* Keep the game from scrolling but don't remove margin: auto centering */
     body.game-focused {
-      overflow: hidden; height: 100vh; margin: 0;
+      overflow: hidden;
+      height: 100vh;
+      /* margin: 0; <-- REMOVED to avoid shifting */
     }
   </style>
 </head>
@@ -151,11 +165,11 @@
 
     function update() {
       movePlayerSnake();
-      moveOpponentSnake();  
+      moveOpponentSnake();
       moveBullet();
-      checkPlayerBoundary(); 
+      checkPlayerBoundary();
       wrapOpponent();
-      checkCollisions();     
+      checkCollisions();
     }
 
     function draw() {
@@ -181,7 +195,6 @@
         scoreElement.textContent = `Score: ${score}`;
         apple = randomApple();
       } else {
-        // Remove tail
         playerSnake.pop();
       }
     }
@@ -210,7 +223,7 @@
       if (opponentDirection === 'down') head.y += cellSize;
       if (opponentDirection === 'left') head.x -= cellSize;
       if (opponentDirection === 'right') head.x += cellSize;
-      
+
       opponentSnake.unshift(head);
 
       if (head.x === apple.x && head.y === apple.y) {
@@ -298,21 +311,20 @@
       startGameLoop();
     });
 
-    gameBoard.addEventListener('mousedown', (e) => {
-      e.preventDefault();
+    // Remove the old mousedown logic to avoid forcing clicks
+    // and instead focus/center by default
+    document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.add('game-focused');
+      init();
+      startGameLoop();
       gameBoard.focus();
     });
-    document.addEventListener('mousedown', (e) => {
-      if (!gameBoard.contains(e.target)) {
-        document.body.classList.remove('game-focused');
-      }
-    });
 
+    // Keyboard events
     document.addEventListener('keydown', (e) => {
-      if (!document.body.classList.contains('game-focused')) return;
+      // Only move if game is running
       if (!isGameRunning) return;
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
         e.preventDefault();
       }
       if (e.key === 'ArrowUp' && direction !== 'down') direction = 'up';
@@ -322,6 +334,7 @@
       else if (e.key === ' ' && !bullet) shootBullet();
     });
 
+    // Random apple position
     function randomApple() {
       return {
         x: Math.floor(Math.random() * (boardSize / cellSize)) * cellSize,
@@ -354,9 +367,6 @@
       bulletElement.style.top = bulletObj.y + 'px';
       gameBoard.appendChild(bulletElement);
     }
-
-    init();
-    startGameLoop();
   </script>
   <footer>
     <p>
