@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AI Factory (Multiple GPU Types, Dashboard Style)</title>
+  <script src="common.js"></script>
+  <style>
+    /* 
+     DASHBOARD-STYLE GRID LAYOUT 
+     ------------------------------------
+     |   header (top bar)              |
+     ------------------------------------
+     | sidebar     | main area         |
+     ------------------------------------
+     |   status (bottom bar)           |
+     ------------------------------------
+    */
+    html, body {
+      margin: 0; padding: 0; 
+      height: 100%; width: 100%;
+      font-family: Arial, sans-serif;
+    }
+    body {
+      display: grid;
+      grid-template-areas:
+        "header header"
+        "sidebar main"
+        "status status";
+      grid-template-columns: 300px 1fr;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100vh;
+    }
+
+    /* HEADER (Top Bar) */
+    #header {
+      grid-area: header;
+      background-color: #222;
+      color: #fff;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+    }
+    #header .metric {
+      margin: 0 20px;
+      font-size: 1.1em;
+    }
+    #header .metric label {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+
+    /* SIDEBAR (Left Column) */
+    #sidebar {
+      grid-area: sidebar;
+      background-color: #f9f9f9;
+      padding: 15px;
+      overflow-y: auto;
+      border-right: 1px solid #ccc;
+    }
+    #sidebar h2 {
+      margin-top: 0;
+    }
+    #sidebar button { margin: 4px 0; }
+
+    /* MAIN (Center Area) */
+    #main {
+      grid-area: main;
+      padding: 15px;
+      overflow-y: auto;
+    }
+    #main h2 {
+      margin-top: 0;
+    }
+
+    /* STATUS (Bottom Bar) */
+    #statusBar {
+      grid-area: status;
+      background-color: #efefef;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      font-size: 0.95em;
+    }
+
+    /* HEAT BAR */
+    #heatContainer {
+      width: 200px;
+      height: 20px;
+      background-color: #eee;
+      position: relative;
+      margin-left: 10px; /* Minor tweak */
+    }
+    #heatBar {
+      height: 100%;
+      width: 0%;
+      background-color: green;
+      transition: width 0.2s linear, background-color 0.2s linear;
+    }
+
+    /* TABLES */
+    table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
+    th, td { border: 1px solid #ccc; padding: 5px; }
+    .inline-controls { display: inline-flex; align-items: center; }
+    .inline-controls button { margin: 0 4px; }
+
+    /* Collapsible sections, if desired (optional) */
+    .section {
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+      padding: 10px;
+      background-color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER (Top Bar) -->
+  <div id="header">
+    <div class="metric">
+      <label>Money ($):</label>
+      <span id="moneyDisplay">0</span>
+    </div>
+
+    <div class="metric">
+      <label>Total GPUs:</label>
+      <span id="gpuDisplay">0</span>
+    </div>
+
+    <div class="metric">
+      <label>Total FLOPS:</label>
+      <span id="flopsDisplay">0</span>
+    </div>
+
+    <div class="metric">
+      <label>Heat:</label>
+      <span id="heatValue">0</span> / 100
+      <div id="heatContainer" style="display:inline-block; vertical-align:middle;">
+        <div id="heatBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR (Left Column) -->
+  <div id="sidebar">
+    <h2>Resource Management</h2>
+    <p><b>Money ($):</b> <span id="moneyDisplay">0</span></p>
+
+    <h3>GPU Inventory</h3>
+    <ul style="list-style:none; margin:0; padding:0;">
+      <li>Type 1 GPUs: <span id="type1Count">0</span> 
+          <button onclick="buyGPU(0)">Buy Type 1 ($30,000)</button>
+          <i>(1e12 FLOPS)</i>
+      </li>
+      <li>Type 2 GPUs: <span id="type2Count">0</span> 
+          <button onclick="buyGPU(1)">Buy Type 2 ($300,000)</button>
+          <i>(1e13 FLOPS)</i>
+      </li>
+      <li>Type 3 GPUs: <span id="type3Count">0</span> 
+          <button onclick="buyGPU(2)">Buy Type 3 ($3,000,000)</button>
+          <i>(1e14 FLOPS)</i>
+      </li>
+    </ul>
+    <p><b>Idle GPUs:</b> <span id="idleDisplay">0</span></p>
+    <p><b>Power Cost (approx):</b> <span id="powerCostDisplay"></span> / hour per GPU</p>
+
+    <h3>Cooling</h3>
+    <p>Each GPU in use generates <b>1 heat/sec</b>. Fans remove heat each second. If no GPUs are in use, heat drops by <b>1/sec</b> automatically.</p>
+    <div>
+      <b>Basic Fan ($1,000):</b> 
+      <button onclick="buyCooling('basic')">Buy</button> 
+      <span id="basicFansCount">0</span> owned
+    </div>
+    <div>
+      <b>Advanced Fan ($5,000):</b> 
+      <button onclick="buyCooling('advanced')">Buy</button> 
+      <span id="advancedFansCount">0</span> owned
+    </div>
+    <div>
+      <b>Industrial Cooling ($20,000):</b> 
+      <button onclick="buyCooling('industrial')">Buy</button> 
+      <span id="industrialFansCount">0</span> owned
+    </div>
+  </div>
+
+  <!-- MAIN (Center Area) -->
+  <div id="main">
+    <!-- TRAINING SECTION -->
+    <div class="section">
+      <h2>Training Center</h2>
+      <p>
+        <b>Allocate GPUs for Training:</b>
+        <span class="inline-controls">
+          <button onclick="changeTrainGPU(-1)">-</button>
+          <input type="number" id="trainGPUInput" value="1" min="0" step="1" onchange="updateTrainGPUFromInput()">
+          <button onclick="changeTrainGPU(1)">+</button>
+        </span>
+      </p>
+      <p><b>Current Training Model:</b> <span id="modelName">None</span></p>
+      <p><b>Training Progress:</b> <span id="trainingProgress">0</span>%</p>
+
+      <h3>Train a new model (once each):</h3>
+      <button id="btn1M"  onclick="startTraining(1e6)">Tiny 1M-param</button>
+      <button id="btn1B"  onclick="startTraining(1e9)">Small 1B-param</button>
+      <button id="btn10B" onclick="startTraining(1e10)">10B-param</button>
+      <button id="btn100B"onclick="startTraining(1e11)">100B-param</button>
+      <button id="btn1T"  onclick="startTraining(1e12)">1T-param</button>
+      <p><i>Token cost = 20 per parameter, $0.50 per million tokens</i></p>
+    </div>
+
+    <!-- DEPLOYED MODELS SECTION -->
+    <div class="section">
+      <h2>Deployed Models</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Params</th>
+            <th>GPU Alloc</th>
+            <th>Upgrades</th>
+            <th>Power (/sec)</th>
+            <th>Revenue (/sec)</th>
+            <th>Upgrade</th>
+          </tr>
+        </thead>
+        <tbody id="deployedTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- STATUS (Bottom Bar) -->
+  <div id="statusBar" style="display: flex; justify-content: space-between; align-items: center;">
+    <div id="status"><b>Status:</b> Ready.</div>
+    
+    <div id="simonwisdom">
+      <a href="https://lab.simonwisdom.com" class="simonwisdom com">
+        <img src="https://lab.simonwisdom.com/favicon.ico" alt="favicon" style="width: 16px; height: 16px;">
+        lab.simonwisdom.com
+      </a>
+    </div>
+  </div>
+
+<script>
+/* -----------------------
+   GAME STATE VARIABLES
+-------------------------*/
+// Start money so you can afford tokens for at least a 1M-param model
+let money = 20;  
+
+// 3 GPU types
+let gpuTypeCosts  = [30000,   300000,   3000000];
+let gpuTypeFlops  = [1e12,    1e13,     1e14];
+
+// If you want to start with 1 GPU, change type1GPUs=1:
+let type1GPUs     = 1;
+let type2GPUs     = 0;
+let type3GPUs     = 0;
+
+// Simple approach: "trainGPUs" is how many total GPUs (all types combined) 
+// are allocated to training. We treat each training GPU as 1 "slot" 
+// worth 1e12 FLOPS for training speed.
+let isTraining = false;
+let trainGPUs = 0;
+let currentModelParams = 0;
+let trainingProgress = 0;
+
+// For one-time training
+let trained1M  = false;
+let trained1B  = false;
+let trained10B = false;
+let trained100B= false;
+let trained1T  = false;
+
+// Power cost
+let powerCostPerHourPerGPU = 0.17 * 1.7; // ~ $0.289/hour/GPU
+let powerCostPerSecPerGPU  = powerCostPerHourPerGPU / 3600;
+
+/* Adjust if you want per-GPU-type power usage. 
+   For simplicity, all types cost the same to run. */
+
+// Tuning constants
+const tokenCostPerMillion = 0.5;
+const tokensPerParam = 20;
+const trainingFlopsCoefficient = 6;
+const trainingFlopsScale = 1e-3;  
+let revenueCoefficient = 0.5;
+
+// Model upgrades
+let baseUpgradeCost = 50;
+let upgradePowerFactor = 0.9;     
+let upgradeRevenueFactor = 1.1;   
+let upgradeCostScale = 2.0;
+
+// Deployed models
+// { name, params, gpuAllocation, upgradeLevel, powerModifier, revenueModifier }
+let deployedModels = [];
+
+// Cooling
+let heat = 0.0;
+let basicFans = 0;
+let advancedFans = 0;
+let industrialFans = 0;
+
+const costBasicFan = 1000;
+const costAdvancedFan = 5000;
+const costIndustrialFan = 20000;
+
+// Efficiency thresholds
+//  0..49 => 100%
+// 50..74 => 80%
+// 75..89 => 50%
+// 90..100 => 50% + chance of GPU failure
+let efficiencyFactor = 1.0;
+
+/* -----------------------
+   INIT & MAIN LOOP
+-------------------------*/
+document.getElementById('moneyDisplay').textContent = money.toFixed(2);
+updateGPUInfo();
+updateFlops();
+updateUI();
+renderDeployedModels();
+
+// Main loop (100 ms)
+setInterval(gameLoop, 100);
+
+function gameLoop() {
+  updateHeat();
+  updateEfficiency();
+  generateRevenue();
+  consumePower();
+  trainModelTick();
+  updateUI();
+  checkWinCondition();
+}
+
+/* -----------------------
+   BUY & TRACK GPUs
+-------------------------*/
+function buyGPU(typeIndex) {
+  let cost = gpuTypeCosts[typeIndex];
+  if (money < cost) {
+    statusMessage("Not enough money to buy this GPU!");
+    return;
+  }
+  money -= cost;
+  if (typeIndex === 0) type1GPUs++;
+  if (typeIndex === 1) type2GPUs++;
+  if (typeIndex === 2) type3GPUs++;
+  statusMessage("GPU purchased!");
+  updateGPUInfo();
+  updateFlops();
+  clampAllAllocations();
+  updateUI();
+}
+
+function updateGPUInfo() {
+  document.getElementById('type1Count').textContent = type1GPUs;
+  document.getElementById('type2Count').textContent = type2GPUs;
+  document.getElementById('type3Count').textContent = type3GPUs;
+  document.getElementById('gpuDisplay').textContent = getTotalGPUs();
+}
+
+// Sum of all three types
+function getTotalGPUs() {
+  return type1GPUs + type2GPUs + type3GPUs;
+}
+
+// Sum of FLOPS from all GPUs
+function getTotalFlops() {
+  return (type1GPUs * gpuTypeFlops[0]) + 
+         (type2GPUs * gpuTypeFlops[1]) + 
+         (type3GPUs * gpuTypeFlops[2]);
+}
+
+/* -----------------------
+   HEAT & EFFICIENCY
+-------------------------*/
+function updateHeat() {
+  // All active GPUs = trainGPUs + sum of each model's GPU allocation
+  let totalActiveGPUs = trainGPUs;
+  deployedModels.forEach(m => totalActiveGPUs += m.gpuAllocation);
+
+  // If we are actively using GPUs...
+  if (totalActiveGPUs > 0) {
+    // Each active GPU => +1 heat/sec => +0.1 every 100ms
+    let heatGenerated = totalActiveGPUs * 0.1;
+    let heatRemoved = 0;
+    heatRemoved += basicFans * (5 * 0.1);
+    heatRemoved += advancedFans * (15 * 0.1);
+    heatRemoved += industrialFans * (50 * 0.1);
+    heat += (heatGenerated - heatRemoved);
+  } else {
+    // If no GPUs in use, drop heat by 1/sec
+    heat -= 0.1;
+  }
+
+  // clamp heat
+  if (heat < 0)   heat = 0;
+  if (heat > 100) heat = 100;
+
+  // GPU failure chance if heat >= 90
+  if (heat >= 90 && Math.random() < 0.002 && getTotalGPUs() > 0) {
+    removeOneRandomGPU();
+    statusMessage("One GPU failed due to overheating!");
+    clampAllAllocations();
+  }
+}
+
+function removeOneRandomGPU() {
+  let candidates = [];
+  if (type1GPUs > 0) candidates.push("t1");
+  if (type2GPUs > 0) candidates.push("t2");
+  if (type3GPUs > 0) candidates.push("t3");
+  if (candidates.length === 0) return; 
+  let chosen = candidates[Math.floor(Math.random()*candidates.length)];
+  if (chosen === "t1") type1GPUs--;
+  if (chosen === "t2") type2GPUs--;
+  if (chosen === "t3") type3GPUs--;
+  updateGPUInfo();
+  updateFlops();
+}
+
+function updateEfficiency() {
+  if (heat < 50) {
+    efficiencyFactor = 1.0; 
+  } else if (heat < 75) {
+    efficiencyFactor = 0.8;
+  } else if (heat < 90) {
+    efficiencyFactor = 0.5;
+  } else {
+    efficiencyFactor = 0.5; 
+  }
+}
+
+/* -----------------------
+   TRAINING
+-------------------------*/
+function startTraining(params) {
+  if (isTraining) {
+    statusMessage("A training job is already in progress.");
+    return;
+  }
+  // One-time check
+  if ((params === 1e6  && trained1M)  ||
+      (params === 1e9  && trained1B)  ||
+      (params === 1e10 && trained10B) ||
+      (params === 1e11 && trained100B)||
+      (params === 1e12 && trained1T)) {
+    statusMessage("This model was already trained. You can’t train it again.");
+    return;
+  }
+  // Token cost
+  let neededTokens = params * tokensPerParam;
+  let neededMillions = neededTokens / 1e6;
+  let costForTokens = neededMillions * tokenCostPerMillion;
+  if (money < costForTokens) {
+    statusMessage("Not enough money for token purchase!");
+    return;
+  }
+  money -= costForTokens;
+  currentModelParams = params;
+  trainingProgress = 0;
+  isTraining = true;
+  let modelSize = formatModelSize(params);
+  document.getElementById('modelName').textContent = modelSize + " Params Model";
+  statusMessage(`Started training ${modelSize} params model.`);
+}
+
+function trainModelTick() {
+  if (!isTraining || currentModelParams <= 0 || trainGPUs <= 0) return;
+
+  // needed flops
+  let neededTokens = currentModelParams * tokensPerParam;
+  let flopsNeeded = trainingFlopsCoefficient * currentModelParams * neededTokens * trainingFlopsScale;
+
+  // We treat each "training GPU" as 1e12 FLOPS, modded by efficiency
+  let flopsThisTick = trainGPUs * 1e12 * 0.1 * efficiencyFactor;
+  let fractionDone = flopsThisTick / flopsNeeded;
+  trainingProgress += fractionDone * 100;
+
+  if (trainingProgress >= 100) {
+    finishTraining();
+  }
+}
+
+function finishTraining() {
+  trainingProgress = 100;
+  isTraining = false;
+
+  if      (currentModelParams === 1e6)   { trained1M = true;  document.getElementById('btn1M').disabled   = true; }
+  else if (currentModelParams === 1e9)   { trained1B = true;  document.getElementById('btn1B').disabled   = true; }
+  else if (currentModelParams === 1e10)  { trained10B = true; document.getElementById('btn10B').disabled  = true; }
+  else if (currentModelParams === 1e11)  { trained100B= true; document.getElementById('btn100B').disabled = true; }
+  else if (currentModelParams === 1e12)  { trained1T = true;  document.getElementById('btn1T').disabled   = true; }
+
+  let modelSize = formatModelSize(currentModelParams) + " Params Model";
+  deployedModels.push({
+    name: modelSize,
+    params: currentModelParams,
+    gpuAllocation: 0,
+    upgradeLevel: 0,
+    powerModifier: 1.0,
+    revenueModifier: 1.0
+  });
+
+  statusMessage("Training complete! Deployed new model: " + modelSize);
+  document.getElementById('modelName').textContent = "None";
+  currentModelParams = 0;
+  renderDeployedModels();
+}
+
+function changeTrainGPU(delta) {
+  trainGPUs += delta;
+  if (trainGPUs < 0) trainGPUs = 0;
+  clampAllAllocations();
+  document.getElementById('trainGPUInput').value = trainGPUs;
+  renderDeployedModels();
+  updateUI();
+}
+
+function updateTrainGPUFromInput() {
+  trainGPUs = parseInt(document.getElementById('trainGPUInput').value) || 0;
+  if (trainGPUs < 0) trainGPUs = 0;
+  clampAllAllocations();
+  document.getElementById('trainGPUInput').value = trainGPUs;
+  renderDeployedModels();
+  updateUI();
+}
+
+/* -----------------------
+   REVENUE & POWER
+-------------------------*/
+function generateRevenue() {
+  for (let m of deployedModels) {
+    if (m.gpuAllocation > 0) {
+      let revPerSec = Math.sqrt(m.params) * revenueCoefficient * m.gpuAllocation * m.revenueModifier * efficiencyFactor;
+      money += revPerSec * 0.1;
+    }
+  }
+}
+
+function consumePower() {
+  // training GPUs + sum of inference GPUs
+  let powerCostThisTick = 0;
+  powerCostThisTick += trainGPUs * powerCostPerSecPerGPU * 0.1;
+  for (let m of deployedModels) {
+    if (m.gpuAllocation > 0) {
+      powerCostThisTick += (m.gpuAllocation * powerCostPerSecPerGPU * m.powerModifier) * 0.1;
+    }
+  }
+  money -= powerCostThisTick;
+  if (money < 0) money = 0;
+}
+
+/* -----------------------
+   ALLOCATION CLAMP
+-------------------------*/
+function clampAllAllocations() {
+  let totalGPUs = getTotalGPUs();
+
+  // 1) clamp training
+  if (trainGPUs > totalGPUs) {
+    trainGPUs = totalGPUs;
+  }
+
+  // 2) clamp each model
+  deployedModels.forEach(m => {
+    if (m.gpuAllocation > totalGPUs) {
+      m.gpuAllocation = totalGPUs;
+    }
+  });
+
+  // 3) if total is still too high, forcibly reduce from the last models
+  let currentAllocated = trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0);
+  if (currentAllocated > totalGPUs) {
+    for (let i = deployedModels.length - 1; i >= 0; i--) {
+      let over = (trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0)) - totalGPUs;
+      if (over > 0) {
+        let reduceAmount = Math.min(over, deployedModels[i].gpuAllocation);
+        deployedModels[i].gpuAllocation -= reduceAmount;
+      }
+      if (trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0) <= totalGPUs) {
+        break;
+      }
+    }
+  }
+}
+
+/* -----------------------
+   DEPLOYED MODELS
+-------------------------*/
+function renderDeployedModels() {
+  let tbody = document.getElementById('deployedTableBody');
+  tbody.innerHTML = "";
+
+  deployedModels.forEach((model, i) => {
+    let row = document.createElement('tr');
+
+    // Model name
+    let tdName = document.createElement('td');
+    tdName.textContent = model.name;
+
+    // Param size
+    let tdParams = document.createElement('td');
+    tdParams.textContent = formatModelSize(model.params);
+
+    // GPU Allocation with +/- 
+    let tdGpuAlloc = document.createElement('td');
+    let allocControls = document.createElement('div');
+    allocControls.className = "inline-controls";
+
+    let minusBtn = document.createElement('button');
+    minusBtn.textContent = "-";
+    minusBtn.onclick = () => changeModelAllocation(i, -1);
+
+    let plusBtn = document.createElement('button');
+    plusBtn.textContent = "+";
+    plusBtn.onclick = () => changeModelAllocation(i, 1);
+
+    let allocInput = document.createElement('input');
+    allocInput.type = "number";
+    allocInput.min = "0";
+    allocInput.step = "1";
+    allocInput.value = model.gpuAllocation;
+    allocInput.onchange = () => setModelAllocation(i, allocInput.value);
+
+    allocControls.appendChild(minusBtn);
+    allocControls.appendChild(allocInput);
+    allocControls.appendChild(plusBtn);
+    tdGpuAlloc.appendChild(allocControls);
+
+    // Upgrades
+    let tdUpgrades = document.createElement('td');
+    tdUpgrades.textContent = "Lv." + model.upgradeLevel;
+
+    // Power usage (per second)
+    let powerSec = powerCostPerSecPerGPU * model.powerModifier * model.gpuAllocation;
+    let tdPower = document.createElement('td');
+    tdPower.textContent = "$" + powerSec.toFixed(6);
+
+    // Revenue (per second)
+    let revPerSec = Math.sqrt(model.params) * revenueCoefficient 
+                    * model.gpuAllocation * model.revenueModifier * efficiencyFactor;
+    let tdRevenue = document.createElement('td');
+    tdRevenue.textContent = "$" + revPerSec.toFixed(2);
+
+    // Upgrade button
+    let tdUpgrade = document.createElement('td');
+    let upgradeBtn = document.createElement('button');
+    let upgradeCost = baseUpgradeCost * Math.pow(upgradeCostScale, model.upgradeLevel);
+    upgradeBtn.textContent = `Upgrade ($${upgradeCost.toFixed(2)})`;
+    upgradeBtn.onclick = () => upgradeModel(i);
+    tdUpgrade.appendChild(upgradeBtn);
+
+    row.appendChild(tdName);
+    row.appendChild(tdParams);
+    row.appendChild(tdGpuAlloc);
+    row.appendChild(tdUpgrades);
+    row.appendChild(tdPower);
+    row.appendChild(tdRevenue);
+    row.appendChild(tdUpgrade);
+
+    tbody.appendChild(row);
+  });
+}
+
+function changeModelAllocation(index, delta) {
+  let m = deployedModels[index];
+  m.gpuAllocation += delta;
+  if (m.gpuAllocation < 0) m.gpuAllocation = 0;
+  clampAllAllocations();
+  renderDeployedModels();
+  updateUI();
+}
+
+function setModelAllocation(index, value) {
+  let m = deployedModels[index];
+  let allocVal = parseInt(value) || 0;
+  if (allocVal < 0) allocVal = 0;
+  m.gpuAllocation = allocVal;
+  clampAllAllocations();
+  renderDeployedModels();
+  updateUI();
+}
+
+/* -----------------------
+   MODEL UPGRADES
+-------------------------*/
+function upgradeModel(index) {
+  let model = deployedModels[index];
+  let cost = baseUpgradeCost * Math.pow(upgradeCostScale, model.upgradeLevel);
+  if (money < cost) {
+    statusMessage("Not enough money to upgrade!");
+    return;
+  }
+  money -= cost;
+  model.upgradeLevel++;
+  model.powerModifier *= upgradePowerFactor;     
+  model.revenueModifier *= upgradeRevenueFactor;
+
+  statusMessage(`${model.name} upgraded to level ${model.upgradeLevel}!`);
+  renderDeployedModels();
+}
+
+/* -----------------------
+   COOLING
+-------------------------*/
+function buyCooling(type) {
+  if (type === 'basic') {
+    if (money >= costBasicFan) {
+      money -= costBasicFan;
+      basicFans++;
+      statusMessage("Bought a Basic Fan!");
+    } else {
+      statusMessage("Not enough money for a Basic Fan.");
+    }
+  } else if (type === 'advanced') {
+    if (money >= costAdvancedFan) {
+      money -= costAdvancedFan;
+      advancedFans++;
+      statusMessage("Bought an Advanced Fan!");
+    } else {
+      statusMessage("Not enough money for an Advanced Fan.");
+    }
+  } else if (type === 'industrial') {
+    if (money >= costIndustrialFan) {
+      money -= costIndustrialFan;
+      industrialFans++;
+      statusMessage("Bought Industrial Cooling!");
+    } else {
+      statusMessage("Not enough money for Industrial Cooling.");
+    }
+  }
+  updateUI();
+}
+
+/* -----------------------
+   UI & WIN CHECK
+-------------------------*/
+function updateUI() {
+  document.getElementById('moneyDisplay').textContent = money.toFixed(2);
+  updateGPUInfo();
+  updateFlops();
+  document.getElementById('trainingProgress').textContent = trainingProgress.toFixed(2);
+  document.getElementById('powerCostDisplay').textContent = "$" + powerCostPerHourPerGPU.toFixed(3);
+
+  // Compute idle = totalGPUs - (trainGPUs + sum of model allocations)
+  let totalGPUs = getTotalGPUs();
+  let allocated = trainGPUs + deployedModels.reduce((s,m) => s + m.gpuAllocation, 0);
+  let idle = totalGPUs - allocated;
+  if (idle < 0) idle = 0;
+  document.getElementById('idleDisplay').textContent = idle;
+
+  // Heat
+  document.getElementById('heatValue').textContent = heat.toFixed(1);
+  let heatPct = (heat / 100) * 100;
+  let heatBar = document.getElementById('heatBar');
+  heatBar.style.width = heatPct + "%";
+  if (heat < 50) {
+    heatBar.style.backgroundColor = "green";
+  } else if (heat < 75) {
+    heatBar.style.backgroundColor = "yellow";
+  } else if (heat < 90) {
+    heatBar.style.backgroundColor = "orange";
+  } else {
+    heatBar.style.backgroundColor = "red";
+  }
+
+  // Fans
+  document.getElementById('basicFansCount').textContent = basicFans;
+  document.getElementById('advancedFansCount').textContent = advancedFans;
+  document.getElementById('industrialFansCount').textContent = industrialFans;
+
+  // Training GPU
+  document.getElementById('trainGPUInput').value = trainGPUs;
+}
+
+function updateFlops() {
+  let total = getTotalFlops();
+  document.getElementById('flopsDisplay').textContent = total.toExponential(2);
+}
+
+function checkWinCondition() {
+  let total = getTotalFlops();
+  if (total >= 2e29) {
+    statusMessage("You have reached 2e29 FLOPS capacity. You win!");
+  }
+}
+
+/* -----------------------
+   HELPERS
+-------------------------*/
+function formatModelSize(params) {
+  if (params >= 1e12) return (params / 1e12) + "T";
+  if (params >= 1e9)  return (params / 1e9)  + "B";
+  if (params >= 1e6)  return (params / 1e6)  + "M";
+  return params.toString();
+}
+
+function statusMessage(msg) {
+  document.getElementById('status').innerHTML = "<b>Status:</b> " + msg;
+}
+</script>
+
+</body>
+</html>
