@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="style.css">
+  <title>Improved Snake Game</title>
+  <style>
+    #game-board {
+      width: 400px;
+      height: 400px;
+      border: 1px solid black;
+      position: relative;
+      cursor: pointer;
+      outline: none;
+    }
+    .snake {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background-color: green;
+    }
+    .opponent {
+      background-color: rgb(212, 255, 0);
+    }
+    .apple {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background-color: red;
+    }
+    .bullet {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      background-color: blue;
+    }
+    #score, #high-score {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    #controls {
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    #game-over-modal {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      width: 80%; max-width: 300px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+    }
+    .modal-content {
+      margin: 0 auto;
+    }
+    .btn-primary {
+      background-color: #111; color: white; border: none;
+      padding: 8px 16px; border-radius: 4px; cursor: pointer;
+      margin-top: 10px;
+    }
+    .btn-primary:hover {
+      background-color: #333;
+    }
+    body.game-focused {
+      overflow: hidden; height: 100vh; margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Snake</h1>
+    <div>
+      <span id="score">Score: 0</span> |
+      <span id="high-score">High Score: 0</span>
+    </div>
+    <div id="game-board" tabindex="0"></div>
+    <div id="controls">Controls: Arrow keys to move, Space to shoot</div>
+    <div id="game-over-modal" class="modal">
+      <div class="modal-content">
+        <h5 class="modal-title">Game Over</h5>
+        <div class="modal-body">
+          <p id="game-over-message"></p>
+          <p id="final-score"></p>
+          <p id="new-high-score"></p>
+        </div>
+        <button class="btn-primary" id="play-again-btn">Play Again</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const boardSize = 400;
+    const cellSize = 10;
+    const snakeSpeed = 100;
+
+    const gameBoard = document.getElementById('game-board');
+    const scoreElement = document.getElementById('score');
+    const highScoreElement = document.getElementById('high-score');
+    const gameOverModal = document.getElementById('game-over-modal');
+    const gameOverMessageElement = document.getElementById('game-over-message');
+    const finalScoreElement = document.getElementById('final-score');
+    const newHighScoreElement = document.getElementById('new-high-score');
+    const playAgainBtn = document.getElementById('play-again-btn');
+
+    let playerSnake = [];
+    let opponentSnake = [];
+    let apple = {x: 0, y: 0};
+    let direction = 'right';
+    let opponentDirection = 'right';
+    let score = 0;
+    let highScore = localStorage.getItem('highScore') || 0;
+    let bullet = null;
+    let bulletDirection = null;
+    let gameInterval;
+    let isGameRunning = false;
+
+    function init() {
+      score = 0;
+      scoreElement.textContent = `Score: ${score}`;
+      highScoreElement.textContent = `High Score: ${highScore}`;
+      playerSnake = [
+        {x: 200, y: 200},
+        {x: 190, y: 200},
+        {x: 180, y: 200}
+      ];
+      opponentSnake = [
+        {x: 100, y: 100},
+        {x: 110, y: 100},
+        {x: 120, y: 100}
+      ];
+      apple = randomApple();
+      direction = 'right';
+      opponentDirection = 'right';
+      bullet = null;
+      bulletDirection = null;
+      isGameRunning = true;
+    }
+
+    function startGameLoop() {
+      gameInterval = setInterval(() => {
+        if (!isGameRunning) return;
+        update();
+        draw();
+      }, snakeSpeed);
+    }
+
+    function update() {
+      movePlayerSnake();
+      moveOpponentSnake();  
+      moveBullet();
+      checkPlayerBoundary(); 
+      wrapOpponent();
+      checkCollisions();     
+    }
+
+    function draw() {
+      gameBoard.innerHTML = '';
+      drawSnake(playerSnake, 'snake');
+      drawSnake(opponentSnake, 'snake opponent');
+      drawApple(apple);
+      if (bullet) drawBullet(bullet);
+    }
+
+    function movePlayerSnake() {
+      const head = {...playerSnake[0]};
+      if (direction === 'up') head.y -= cellSize;
+      if (direction === 'down') head.y += cellSize;
+      if (direction === 'left') head.x -= cellSize;
+      if (direction === 'right') head.x += cellSize;
+
+      playerSnake.unshift(head);
+
+      // Eat apple
+      if (head.x === apple.x && head.y === apple.y) {
+        score++;
+        scoreElement.textContent = `Score: ${score}`;
+        apple = randomApple();
+      } else {
+        // Remove tail
+        playerSnake.pop();
+      }
+    }
+
+    // Opponent tries to move toward apple and wraps around edges
+    function moveOpponentSnake() {
+      const head = {...opponentSnake[0]};
+      const dx = apple.x - head.x;
+      const dy = apple.y - head.y;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 0 && opponentDirection !== 'left') {
+          opponentDirection = 'right';
+        } else if (dx < 0 && opponentDirection !== 'right') {
+          opponentDirection = 'left';
+        }
+      } else {
+        if (dy > 0 && opponentDirection !== 'up') {
+          opponentDirection = 'down';
+        } else if (dy < 0 && opponentDirection !== 'down') {
+          opponentDirection = 'up';
+        }
+      }
+
+      if (opponentDirection === 'up') head.y -= cellSize;
+      if (opponentDirection === 'down') head.y += cellSize;
+      if (opponentDirection === 'left') head.x -= cellSize;
+      if (opponentDirection === 'right') head.x += cellSize;
+      
+      opponentSnake.unshift(head);
+
+      if (head.x === apple.x && head.y === apple.y) {
+        apple = randomApple();
+      } else {
+        opponentSnake.pop();
+      }
+    }
+
+    // Only the opponent snake can wrap around
+    function wrapOpponent() {
+      const head = opponentSnake[0];
+      if (head.x < 0) head.x = boardSize - cellSize;
+      else if (head.x >= boardSize) head.x = 0;
+      if (head.y < 0) head.y = boardSize - cellSize;
+      else if (head.y >= boardSize) head.y = 0;
+    }
+
+    // Player boundary check → gameOver if out of bounds
+    function checkPlayerBoundary() {
+      const head = playerSnake[0];
+      if (head.x < 0 || head.x >= boardSize || head.y < 0 || head.y >= boardSize) {
+        gameOver();
+      }
+    }
+
+    function moveBullet() {
+      if (!bullet) return;
+      if (bulletDirection === 'up') bullet.y -= cellSize * 2;
+      if (bulletDirection === 'down') bullet.y += cellSize * 2;
+      if (bulletDirection === 'left') bullet.x -= cellSize * 2;
+      if (bulletDirection === 'right') bullet.x += cellSize * 2;
+      if (bullet.x < 0 || bullet.x >= boardSize || bullet.y < 0 || bullet.y >= boardSize) {
+        bullet = null;
+      }
+    }
+
+    // Check bullet collisions with opponent
+    function checkCollisions() {
+      if (bullet) {
+        for (let i = 0; i < opponentSnake.length; i++) {
+          if (isColliding(bullet, opponentSnake[i], 5, 10)) {
+            // Trim opponent snake at collision point
+            opponentSnake = opponentSnake.slice(0, i + 1);
+            bullet = null;
+            break;
+          }
+        }
+      }
+    }
+
+    function isColliding(objA, objB, sizeA = 10, sizeB = 10) {
+      return (
+        objA.x < objB.x + sizeB &&
+        objA.x + sizeA > objB.x &&
+        objA.y < objB.y + sizeB &&
+        objA.y + sizeA > objB.y
+      );
+    }
+
+    function shootBullet() {
+      bullet = { x: playerSnake[0].x, y: playerSnake[0].y };
+      bulletDirection = direction;
+    }
+
+    function gameOver() {
+      isGameRunning = false;
+      clearInterval(gameInterval);
+      gameOverModal.style.display = 'block';
+      gameOverMessageElement.textContent = 'Game Over!';
+      finalScoreElement.textContent = `Your final score is: ${score}`;
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('highScore', highScore);
+        newHighScoreElement.textContent = `New High Score: ${highScore}`;
+      } else {
+        newHighScoreElement.textContent = '';
+      }
+    }
+
+    playAgainBtn.addEventListener('click', () => {
+      gameOverModal.style.display = 'none';
+      init();
+      clearInterval(gameInterval);
+      startGameLoop();
+    });
+
+    gameBoard.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.body.classList.add('game-focused');
+      gameBoard.focus();
+    });
+    document.addEventListener('mousedown', (e) => {
+      if (!gameBoard.contains(e.target)) {
+        document.body.classList.remove('game-focused');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (!document.body.classList.contains('game-focused')) return;
+      if (!isGameRunning) return;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+      if (e.key === 'ArrowUp' && direction !== 'down') direction = 'up';
+      else if (e.key === 'ArrowDown' && direction !== 'up') direction = 'down';
+      else if (e.key === 'ArrowLeft' && direction !== 'right') direction = 'left';
+      else if (e.key === 'ArrowRight' && direction !== 'left') direction = 'right';
+      else if (e.key === ' ' && !bullet) shootBullet();
+    });
+
+    function randomApple() {
+      return {
+        x: Math.floor(Math.random() * (boardSize / cellSize)) * cellSize,
+        y: Math.floor(Math.random() * (boardSize / cellSize)) * cellSize
+      };
+    }
+
+    function drawSnake(snakeArray, className) {
+      for (let part of snakeArray) {
+        const snakePart = document.createElement('div');
+        snakePart.className = className;
+        snakePart.style.left = part.x + 'px';
+        snakePart.style.top = part.y + 'px';
+        gameBoard.appendChild(snakePart);
+      }
+    }
+
+    function drawApple(appleObj) {
+      const appleElement = document.createElement('div');
+      appleElement.className = 'apple';
+      appleElement.style.left = appleObj.x + 'px';
+      appleElement.style.top = appleObj.y + 'px';
+      gameBoard.appendChild(appleElement);
+    }
+
+    function drawBullet(bulletObj) {
+      const bulletElement = document.createElement('div');
+      bulletElement.className = 'bullet';
+      bulletElement.style.left = bulletObj.x + 'px';
+      bulletElement.style.top = bulletObj.y + 'px';
+      gameBoard.appendChild(bulletElement);
+    }
+
+    init();
+    startGameLoop();
+  </script>
+  <footer>
+    <p>
+      <a href="https://lab.simonwisdom.com/favicon.ico">
+        <img src="https://lab.simonwisdom.com/favicon.ico" alt="Favicon" style="width:16px; height:16px; vertical-align:middle;">
+      </a>
+      <a href="https://lab.simonwisdom.com">lab.simonwisdom.com</a>
+    </p>
+  </footer>
+</body>
+</html>
