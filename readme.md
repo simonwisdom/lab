@@ -2,7 +2,7 @@
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
  
-[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Scaling v1
+[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory - inspired by [Ultimate Paperclipper](https://www.decisionproblem.com/paperclips/index2.html) [WIP]
 
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
 
