@@ -1,422 +1,1158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <script async src="https://analytics.umami.is/script.js" data-website-id="25a7a9a8-359f-4f5f-a8a4-0ca1add617d9"></script>
-    <title>AI Scaling</title>
-    <style>
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            font-family: Arial, sans-serif
-        }
-
-        body {
-            display: grid;
-            grid-template-areas: "header header" "sidebar main" "status status";
-            grid-template-columns: 300px 1fr;
-            grid-template-rows: auto 1fr auto;
-            min-height: 100vh
-        }
-
-        #header {
-            grid-area: header;
-            background-color: #222;
-            color: #fff;
-            padding: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-around
-        }
-
-        #header .metric {
-            margin: 0 20px;
-            font-size: 1.1em
-        }
-
-        #header .metric label {
-            font-weight: bold;
-            margin-right: 5px
-        }
-
-        #sidebar {
-            grid-area: sidebar;
-            background-color: #f9f9f9;
-            padding: 15px;
-            overflow-y: auto;
-            border-right: 1px solid #ccc
-        }
-
-        #sidebar h2 {
-            margin-top: 0
-        }
-
-        #sidebar button {
-            margin: 4px 0
-        }
-
-        #main {
-            grid-area: main;
-            padding: 15px;
-            overflow-y: auto
-        }
-
-        #main h2 {
-            margin-top: 0
-        }
-
-        #statusBar {
-            grid-area: status;
-            background-color: #efefef;
-            padding: 10px;
-            border-top: 1px solid #ccc;
-            font-size: .95em
-        }
-
-        #heatContainer {
-            width: 200px;
-            height: 20px;
-            background-color: #eee;
-            position: relative;
-            margin-left: 10px;
-            display: inline-block;
-            vertical-align: middle
-        }
-
-        #heatBar {
-            height: 100%;
-            width: 0%;
-            background-color: green;
-            transition: width .2s linear, background-color .2s linear
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 15px
-        }
-
-        th,
-        td {
-            border: 1px solid #ccc;
-            padding: 5px
-        }
-
-        .inline-controls {
-            display: inline-flex;
-            align-items: center
-        }
-
-        .inline-controls button {
-            margin: 0 4px
-        }
-
-        .section {
-            border: 1px solid #ddd;
-            margin-bottom: 10px;
-            padding: 10px;
-            background-color: #fff
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI GPU Management Game</title>
+    <!-- Tailwind CSS Production -->
+    <link href="https://cdn.jsdelivr.net/npm/@tailwindcss/ui@latest/dist/tailwind-ui.min.css" rel="stylesheet">
+    <!-- React Dependencies (Development versions for better error messages) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Use Babel Standalone's pre-compiled version -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.min.js"></script>
 </head>
 
 <body>
-    <div id="header">
-        <div class="metric"><label>Money ($):</label><span id="moneyDisplay">0</span></div>
-        <div class="metric"><label>Total GPUs:</label><span id="gpuDisplay">0</span></div>
-        <div class="metric"><label>Total FLOPS:</label><span id="flopsDisplay">0</span></div>
-        <div class="metric"><label>Scaling Efficiency:</label><span id="scalingEfficiencyDisplay">100%</span></div>
-        <div class="metric">
-            <label>Heat:</label><span id="heatValue">0</span> / 100
-            <div id="heatContainer">
-                <div id="heatBar"></div>
+    <div id="root"></div>
+
+    <!-- Game Component -->
+    <script type="text/babel" data-presets="react">
+
+        // --- COMPONENTS ---
+
+        // --- Reusable Style Constants ---
+        const styles = {
+            sectionTitle: 'text-xl font-bold mb-6',
+            card: 'bg-gray-700 rounded-lg p-4',
+            button: 'bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg transition-colors',
+            greenButton: 'bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg transition-colors',
+            label: 'text-sm text-gray-400',
+            value: 'font-bold',
+            progressBar: 'bg-gray-700 h-2 rounded',
+            systemNavButton: (active) => `flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${active ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`
+        };
+
+        // --- Utility Functions ---
+        const format = {
+            currency: (n) => n.toLocaleString(),
+            modelSize: (p) => {
+                if (p >= 1e12) return (p / 1e12) + 'T';
+                if (p >= 1e9) return (p / 1e9) + 'B';
+                if (p >= 1e6) return (p / 1e6) + 'M';
+                return p.toString();
+            }
+        };
+
+        // --- Base Components ---
+        const SectionTitle = ({ children }) => (
+            <h2 className={styles.sectionTitle}>{children}</h2>
+        );
+
+        const Card = ({ children }) => (
+            <div className={styles.card}>{children}</div>
+        );
+
+        const LabeledValue = ({ label, value, labelClass = '', valueClass = '' }) => (
+            <div>
+                <div className={`${styles.label} ${labelClass}`}>{label}</div>
+                <div className={`${styles.value} ${valueClass}`}>{value}</div>
             </div>
-        </div>
-    </div>
-    <div id="sidebar">
-        <h2>Resource Management</h2>
-        <h3>GPU Inventory</h3>
-        <ul style="list-style:none;margin:0;padding:0">
-            <li>
-                RTX 4090: <span id="type1Count">0</span>
-                <button onclick="buyGPU(0)">Buy RTX 4090 ($1,600)</button>
-                <button onclick="parallelizeGPU(0)">Parallelize 4 GPUs</button>
-                <i>(8.26e13 FLOPS)</i>
-                <div>Parallel Groups: <span id="pg4090">0</span> (4x RTX 4090 each)</div>
-            </li>
-            <li>
-                A6000: <span id="type2Count">0</span>
-                <button onclick="buyGPU(1)">Buy A6000 ($4,800)</button>
-                <button onclick="parallelizeGPU(1)">Parallelize 4 GPUs</button>
-                <i>(1.497e14 FLOPS)</i>
-                <div>Parallel Groups: <span id="pgA6000">0</span> (4x A6000)</div>
-            </li>
-            <li>
-                H100 SXM5: <span id="type3Count">0</span>
-                <button onclick="buyGPU(2)">Buy H100 SXM5 ($30,400)</button>
-                <button onclick="parallelizeGPU(2)">Parallelize 4 GPUs</button>
-                <i>(9.89e14 FLOPS)</i>
-                <div>Parallel Groups: <span id="pgH100">0</span> (4x H100 SXM5)</div>
-            </li>
-        </ul>
-        <p><b>Idle GPUs:</b> <span id="idleDisplay">0</span></p>
-        <p><b>Power Cost (approx):</b> <span id="powerCostDisplay"></span> / hour per GPU (average)</p>
-        <h3>Cooling</h3>
-        <p>Each GPU in use generates heat depending on its tier. Fans remove heat each second. If no GPUs are in use,
-            heat drops by <b>1/sec</b> automatically.</p>
-        <div><b>Basic Fan ($1,000):</b> <button onclick="buyCooling('basic')">Buy</button> <span
-                id="basicFansCount">0</span> owned</div>
-        <div><b>Advanced Fan ($5,000):</b> <button onclick="buyCooling('advanced')">Buy</button> <span
-                id="advancedFansCount">0</span> owned</div>
-        <div><b>Industrial Cooling ($20,000):</b> <button onclick="buyCooling('industrial')">Buy</button> <span
-                id="industrialFansCount">0</span> owned</div>
-    </div>
-    <div id="main">
-        <div class="section">
-            <h2>Training Center</h2>
-            <p><b>Allocate GPUs for Training:</b>
-                <span class="inline-controls">
-                    <button onclick="changeTrainGPU(-1)">-</button>
-                    <input type="number" id="trainGPUInput" value="1" min="0" step="1"
-                        onchange="updateTrainGPUFromInput()">
-                    <button onclick="changeTrainGPU(1)">+</button>
-                </span>
-            </p>
-            <p><b>Current Training Model:</b> <span id="modelName">None</span></p>
-            <p><b>Training Progress:</b> <span id="trainingProgress">0</span>%</p>
-            <h3>Train a new model (once each):</h3>
-            <button id="btn1M" onclick="startTraining(1e6)">Tiny 1M-param</button>
-            <button id="btn1B" onclick="startTraining(1e9)">Small 1B-param</button>
-            <button id="btn10B" onclick="startTraining(1e10)">10B-param</button>
-            <button id="btn100B" onclick="startTraining(1e11)">100B-param</button>
-            <button id="btn1T" onclick="startTraining(1e12)">1T-param</button>
-            <p><i>Token cost = 20 per parameter, $0.50 per million tokens</i></p>
-        </div>
-        <div class="section">
-            <h2>Deployed Models</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Model</th>
-                        <th>Params</th>
-                        <th>GPU Alloc</th>
-                        <th>Upgrades</th>
-                        <th>Power (/sec)</th>
-                        <th>Revenue (/sec)</th>
-                        <th>Upgrade</th>
-                    </tr>
-                </thead>
-                <tbody id="deployedTableBody"></tbody>
-            </table>
-        </div>
-    </div>
-    <div id="statusBar" style="display:flex;justify-content:space-between;align-items:center">
-        <div id="status"><b>Status:</b> Ready.</div>
-        <div id="simonwisdom">
-            <a href="https://lab.simonwisdom.com" class="simonwisdom com">
-                <img src="https://lab.simonwisdom.com/favicon.ico" alt="favicon" style="width:16px;height:16px">
-                lab.simonwisdom.com
-            </a>
-        </div>
-    </div>
-    <script>
-        /* GAME STATE VARIABLES */
-        let gpuTypeCosts = [1600, 4800, 30400];
-        let gpuTypeFlops = [8.26e13, 1.497e14, 9.89e14];
-        let gpuTypePowerHour = [0.045, 0.03, 0.07];
-        // HEAT FACTORS (TWEAKED)
-        let gpuTypeHeatFactor = [2.0, 3.0, 6.0];
-        // GPU COUNTS
-        let type1GPUs = 1, type2GPUs = 0, type3GPUs = 0;
-        let parallelGroups = [0, 0, 0];
-        // TWEAKED PARALLEL BOOST
-        let parallelBoostFactor = 4.0;
-        // MONEY
-        let money = 20;
-        // TRAINING
-        let isTraining = false, trainGPUs = 0, currentModelParams = 0, trainingProgress = 0;
-        let trained1M = false, trained1B = false, trained10B = false, trained100B = false, trained1T = false;
-        // DEPLOYED MODELS
-        let deployedModels = [];
-        // COOLING
-        let heat = 0, basicFans = 1, advancedFans = 0, industrialFans = 0;
-        const costBasicFan = 1000, costAdvancedFan = 5000, costIndustrialFan = 20000;
-        // TWEAKED CONSTANTS
-        let tokenCostPerMillion = 0.1;       // down from 0.5
-        let trainingFlopsCoefficient = 0.1;  // down from 6
-        let trainingFlopsScale = 1e-4;       // down from 1e-3
-        let revenueCoefficient = 0.02;       // down from 0.5
-        let baseUpgradeCost = 100;           // up from 50
-        let upgradePowerFactor = 0.9, upgradeRevenueFactor = 1.2; // upgradeRevenueFactor up from 1.1
-        let upgradeCostScale = 1.5;          // down from 2.0
-        // MAIN LOOP
-        document.getElementById('moneyDisplay').textContent = money.toFixed(2); updateGPUInfo(); updateFlops(); updateUI(); renderDeployedModels();
-        setInterval(gameLoop, 100);
+        );
 
-        function gameLoop() 
-        { updateHeat(); updateEfficiency(); generateRevenue(); consumePower(); trainModelTick(); updateUI(); checkWinCondition(); }
+        const Button = ({ onClick, children, style = styles.button }) => (
+            <button onClick={onClick} className={style}>{children}</button>
+        );
 
-        function buyGPU(typeIndex) { let cost = gpuTypeCosts[typeIndex]; if (money < cost) { statusMessage("Not enough money to buy this GPU!"); return; } money -= cost; if (typeIndex === 0) type1GPUs++; if (typeIndex === 1) type2GPUs++; if (typeIndex === 2) type3GPUs++; statusMessage("GPU purchased!"); updateGPUInfo(); updateFlops(); clampAllAllocations(); updateUI(); }
+        const ProgressBar = ({ value, max, color = 'bg-blue-500' }) => (
+            <div className={styles.progressBar}>
+                <div className={`${color} h-full rounded`} style={{ width: `${Math.min(value / max, 1) * 100}%` }} />
+            </div>
+        );
 
-        function parallelizeGPU(typeIndex) { let available = 0; if (typeIndex === 0) available = type1GPUs; if (typeIndex === 1) available = type2GPUs; if (typeIndex === 2) available = type3GPUs; if (available < 4) { statusMessage("Not enough GPUs to form a group of 4!"); return; } let groupCount = parallelGroups[typeIndex]; let cost = 100000 + 50000 * groupCount; if (money < cost) { statusMessage("Not enough money to parallelize!"); return; } money -= cost; parallelGroups[typeIndex]++; if (typeIndex === 0) type1GPUs -= 4; if (typeIndex === 1) type2GPUs -= 4; if (typeIndex === 2) type3GPUs -= 4; statusMessage("Parallelized 4 GPUs of type " + typeIndex + "!"); updateGPUInfo(); updateFlops(); clampAllAllocations(); updateUI(); }
+        // --- Core Resource Bar Component ---
+        function CoreResourceBar({ money, revPerSec, totalFlopsDisplay, currentPowerUsage, powerCapacity, solarPanels, windTurbines, heat }) {
+            const renewablePower = solarPanels * 5 + windTurbines * 7;
+            return (
+                <div className="bg-gray-800 border-b border-gray-700">
+                    <div className="container mx-auto py-3 px-4">
+                        <div className="flex justify-between items-center">
+                            {/* Primary Resources */}
+                            <div className="flex space-x-8">
+                                <LabeledValue label="Revenue/sec" value={`+$${revPerSec.toFixed(2)}`} valueClass="text-green-400" />
+                                <LabeledValue label="Available Money" value={`$${money.toFixed(2)}`} />
+                            </div>
 
-        function updateGPUInfo() { document.getElementById('type1Count').textContent = type1GPUs; document.getElementById('type2Count').textContent = type2GPUs; document.getElementById('type3Count').textContent = type3GPUs; document.getElementById('pg4090').textContent = parallelGroups[0]; document.getElementById('pgA6000').textContent = parallelGroups[1]; document.getElementById('pgH100').textContent = parallelGroups[2]; document.getElementById('gpuDisplay').textContent = getTotalGPUs(); }
-        function getTotalFlops() { let g0 = parallelGroups[0] * (4 * gpuTypeFlops[0] * parallelBoostFactor) + type1GPUs * gpuTypeFlops[0]; let g1 = parallelGroups[1] * (4 * gpuTypeFlops[1] * parallelBoostFactor) + type2GPUs * gpuTypeFlops[1]; let g2 = parallelGroups[2] * (4 * gpuTypeFlops[2] * parallelBoostFactor) + type3GPUs * gpuTypeFlops[2]; return g0 + g1 + g2; }
+                            {/* Core Metrics */}
+                            <div className="flex space-x-8">
+                                <LabeledValue label="Total FLOPS" value={totalFlopsDisplay} />
+                                <LabeledValue label="Power Usage" value={`${currentPowerUsage.toFixed(1)}/${powerCapacity + renewablePower} kW`} valueClass="text-yellow-400" />
+                                <LabeledValue label="Heat" value={`${heat.toFixed(1)}/100`} valueClass="text-red-400" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
 
-        function getTotalGPUs() { 
-            return (type1GPUs + type2GPUs + type3GPUs) + (parallelGroups[0] + parallelGroups[1] + parallelGroups[2]) * 4; }
+        // --- Core Loop Visualization Component ---
+        function CoreLoopVisualization({ totalGPUs, parallelGroups, trainGPUs, revPerSec }) {
+            return (
+                <Card>
+                    <div className="flex justify-between items-center">
+                        <LabeledValue label="GPUs" value={`${totalGPUs} Total (${parallelGroups.reduce((a, b) => a + b, 0)} Groups)`} />
+                        <LabeledValue label="Training" value={`${trainGPUs} Active GPUs`} />
+                        <LabeledValue label="Revenue" value={`$${revPerSec.toFixed(2)}/sec`} />
+                    </div>
+                </Card>
+            );
+        }
 
-        function updateHeat() {
-            let totalInUse = trainGPUs + deployedModels.reduce((s, m) => s + m.gpuAllocation, 0), totalGPUsAvailable = getTotalGPUs();
-            if (totalInUse < 1 || totalGPUsAvailable < 1) { heat -= 0.1; } else {
-                let usageRatio = Math.min(1, totalInUse / totalGPUsAvailable);
-                let active4090 = usageRatio * type1GPUs, activeA6000 = usageRatio * type2GPUs, activeH100 = usageRatio * type3GPUs;
-                let activePG_4090 = usageRatio * parallelGroups[0] * 4, activePG_A6000 = usageRatio * parallelGroups[1] * 4, activePG_H100 = usageRatio * parallelGroups[2] * 4;
-                let heatGenerated = (active4090 * gpuTypeHeatFactor[0]) + (activeA6000 * gpuTypeHeatFactor[1]) + (activeH100 * gpuTypeHeatFactor[2]) + (activePG_4090 * gpuTypeHeatFactor[0]) + (activePG_A6000 * gpuTypeHeatFactor[1]) + (activePG_H100 * gpuTypeHeatFactor[2]);
-                heatGenerated *= 0.1;
-                // Add parallel group scaling
-                let totalParallelGroups = parallelGroups[0] + parallelGroups[1] + parallelGroups[2];
-                let heatMultiplier = 1.0 + (totalParallelGroups * 0.2);
-                heatGenerated *= heatMultiplier;
-                // Cooling
-                let heatRemoved = basicFans * (2.0 * 0.1) + advancedFans * (8.0 * 0.1) + industrialFans * (25.0 * 0.1);
-                heat += heatGenerated - heatRemoved;
-            }
-            if (heat < 0) heat = 0; if (heat > 100) heat = 100; if (heat >= 90 && Math.random() < 0.002 && getTotalGPUs() > 0) { removeOneRandomGPU(); statusMessage("One GPU failed due to overheating!"); clampAllAllocations(); }
+        // --- System Navigation Component ---
+        function SystemNavigation({ activeSystem, setActiveSystem }) {
+            const systems = [
+                { id: 'compute', label: 'Compute' },
+                { id: 'training', label: 'Training' },
+                { id: 'inference', label: 'Inference' },
+                { id: 'power', label: 'Power' }
+            ];
+
+            return (
+                <div className="flex space-x-4 mb-6">
+                    {systems.map(system => (
+                        <Button
+                            key={system.id}
+                            onClick={() => setActiveSystem(system.id)}
+                            style={styles.systemNavButton(activeSystem === system.id)}
+                        >
+                            {system.label}
+                        </Button>
+                    ))}
+                </div>
+            );
         }
-        function removeOneRandomGPU() {
-            let slots = []; if (type1GPUs > 0) slots.push("t1"); if (type2GPUs > 0) slots.push("t2"); if (type3GPUs > 0) slots.push("t3"); if (parallelGroups[0] > 0) slots.push("pg1"); if (parallelGroups[1] > 0) slots.push("pg2"); if (parallelGroups[2] > 0) slots.push("pg3"); if (!slots.length) return;
-            let c = slots[Math.floor(Math.random() * slots.length)];
-            if (c === "t1") type1GPUs--; if (c === "t2") type2GPUs--; if (c === "t3") type3GPUs--;
-            if (c === "pg1") parallelGroups[0]--; if (c === "pg2") parallelGroups[1]--; if (c === "pg3") parallelGroups[2]--;
-            updateGPUInfo(); updateFlops();
+
+        // --- GPU Card Component ---
+        function GPUCard({ type, name, flops, cost, count, parallelGroups, onBuy, onParallelize, parallelizeCost }) {
+            return (
+                <Card>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <div className="text-lg font-bold flex items-center">{name}</div>
+                            <div className={styles.label}>{flops.toExponential(2)} FLOPS per unit</div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <LabeledValue label="Cost" value={`$${format.currency(cost)}`} labelClass="text-right" />
+                            <Button onClick={onBuy}>Buy GPU</Button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Single Units */}
+                        <div className="bg-gray-800 rounded-lg p-3">
+                            <div className={styles.label}>Single Units</div>
+                            <div className="text-2xl font-bold">{count}</div>
+                            <div className={styles.label}>{(count * flops).toExponential(2)} Total FLOPS</div>
+                        </div>
+
+                        {/* Parallel Groups */}
+                        <div className="bg-gray-800 rounded-lg p-3">
+                            <div className={styles.label}>Parallel Groups</div>
+                            <div className="text-2xl font-bold">{parallelGroups} ({parallelGroups * 4} GPUs)</div>
+                            <div className={styles.label}>{(parallelGroups * 4 * flops * 4).toExponential(2)} Total FLOPS</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-between items-center">
+                        <div className={styles.label}>Parallelize 4 GPUs for ${format.currency(parallelizeCost)}</div>
+                        <Button onClick={onParallelize} style={styles.greenButton}>Parallelize</Button>
+                    </div>
+                </Card>
+            );
         }
-        let efficiencyFactor = 1.0;
-        function updateEfficiency() {
-            let r0 = (type1GPUs * gpuTypeFlops[0]) + (parallelGroups[0] * 4 * gpuTypeFlops[0]);
-            let rr0 = (type1GPUs * gpuTypeFlops[0]) + (parallelGroups[0] * 4 * gpuTypeFlops[0] * parallelBoostFactor);
-            let r1 = (type2GPUs * gpuTypeFlops[1]) + (parallelGroups[1] * 4 * gpuTypeFlops[1]);
-            let rr1 = (type2GPUs * gpuTypeFlops[1]) + (parallelGroups[1] * 4 * gpuTypeFlops[1] * parallelBoostFactor);
-            let r2 = (type3GPUs * gpuTypeFlops[2]) + (parallelGroups[2] * 4 * gpuTypeFlops[2]);
-            let rr2 = (type3GPUs * gpuTypeFlops[2]) + (parallelGroups[2] * 4 * gpuTypeFlops[2] * parallelBoostFactor);
-            let totalRaw = r0 + r1 + r2, totalReal = rr0 + rr1 + rr2; let ratio = (totalRaw > 0) ? (totalReal / totalRaw) : 1; efficiencyFactor = ratio;
-            // Heat-based penalties
-            if (heat < 25) { efficiencyFactor *= 1.0; } else if (heat < 50) { efficiencyFactor *= 0.9; } else if (heat < 75) { efficiencyFactor *= 0.7; } else if (heat < 90) { efficiencyFactor *= 0.4; } else { efficiencyFactor *= 0.2; }
-            document.getElementById('scalingEfficiencyDisplay').textContent = (ratio * 100).toFixed(1) + "%";
+
+        // --- GPU Management Component ---
+        function GPUManagement({ gpuTypes, parallelGroups, buyGPU, parallelizeGPU, gpuTypeCosts, gpuTypeFlops }) {
+            return (
+                <Card>
+                    <SectionTitle>GPU Management</SectionTitle>
+                    <div className="space-y-6">
+                        {gpuTypes.map((gpu, index) => (
+                            <GPUCard
+                                key={index}
+                                type={index}
+                                name={gpu.name}
+                                flops={gpuTypeFlops[index]}
+                                cost={gpuTypeCosts[index]}
+                                count={gpu.count}
+                                parallelGroups={parallelGroups[index]}
+                                onBuy={() => buyGPU(index)}
+                                onParallelize={() => parallelizeGPU(index)}
+                                parallelizeCost={150000 + 75000 * parallelGroups[index]}
+                            />
+                        ))}
+                    </div>
+                </Card>
+            );
         }
-        function startTraining(params) {
-            if (isTraining) { statusMessage("A training job is already in progress."); return; }
-            if ((params === 1e6 && trained1M) || (params === 1e9 && trained1B) || (params === 1e10 && trained10B) || (params === 1e11 && trained100B) || (params === 1e12 && trained1T)) {
-                statusMessage("This model was already trained. You can’t train it again."); return;
-            }
-            let neededTokens = params * 20; let neededMillions = neededTokens / 1e6; let costForTokens = neededMillions * tokenCostPerMillion; if (money < costForTokens) { statusMessage("Not enough money for token purchase!"); return; }
-            money -= costForTokens; currentModelParams = params; trainingProgress = 0; isTraining = true; document.getElementById('modelName').textContent = formatModelSize(params) + " Params Model"; statusMessage("Started training " + formatModelSize(params) + " params model.");
+
+        // --- Training Center Component ---
+        function TrainingCenter({ isTraining, currentModelParams, trainingProgress, trainGPUs, trainedModels, changeTrainGPU, setTrainGPUInput, startTraining, formatModelSize }) {
+            return (
+                <Card>
+                    <SectionTitle>Model Training</SectionTitle>
+                    <div className="space-y-3">
+                        <div>
+                            <div className={styles.label}>Current Model:</div>
+                            {isTraining && currentModelParams ? (
+                                <>
+                                    <div className="text-sm">{formatModelSize(currentModelParams)}-param Model</div>
+                                    <ProgressBar value={trainingProgress} max={100} color="bg-purple-500" />
+                                </>
+                            ) : (
+                                <div className="text-sm">None</div>
+                            )}
+                        </div>
+
+                        <div>
+                            <div className={styles.label}>GPU Allocation:</div>
+                            <div className="flex items-center space-x-1">
+                                <Button onClick={() => changeTrainGPU(-1)} style="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">-</Button>
+                                <input
+                                    type="number"
+                                    className="border rounded w-16 p-1 text-sm text-center bg-gray-900"
+                                    value={trainGPUs}
+                                    onChange={(e) => setTrainGPUInput(e.target.value)}
+                                />
+                                <Button onClick={() => changeTrainGPU(1)} style="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm">+</Button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className={styles.label}>Train New Model:</div>
+                            <div className="flex flex-wrap gap-1">
+                                {/* Model training buttons */}
+                                {[1e6, 1e9, 1e10, 1e11, 1e12].map(params => (
+                                    <Button
+                                        key={params}
+                                        style="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 text-sm rounded"
+                                        onClick={() => startTraining(params)}
+                                        disabled={trainedModels[String(params)]}
+                                    >
+                                        {formatModelSize(params)}
+                                    </Button>
+                                ))}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                Token cost = 20 per parameter, $0.50 per million tokens
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            );
         }
-        function trainModelTick() {
-            if (!isTraining || currentModelParams <= 0 || trainGPUs <= 0) return; let neededTokens = currentModelParams * 20; let flopsNeeded = trainingFlopsCoefficient * currentModelParams * neededTokens * trainingFlopsScale;
-            let totalGPUs = getTotalGPUs(); if (!totalGPUs || !trainGPUs) return; let trainingProportion = trainGPUs / totalGPUs; let totalFlops = getTotalFlops();
-            let flopsAllocated = totalFlops * trainingProportion; let flopsThisTick = flopsAllocated * 0.1 * efficiencyFactor; let fractionDone = flopsThisTick / flopsNeeded;
-            trainingProgress += fractionDone * 100; if (trainingProgress >= 100) finishTraining();
-        }
-        function finishTraining() {
-            trainingProgress = 100; isTraining = false;
-            if (currentModelParams === 1e6) { trained1M = true; document.getElementById('btn1M').disabled = true; }
-            else if (currentModelParams === 1e9) { trained1B = true; document.getElementById('btn1B').disabled = true; }
-            else if (currentModelParams === 1e10) { trained10B = true; document.getElementById('btn10B').disabled = true; }
-            else if (currentModelParams === 1e11) { trained100B = true; document.getElementById('btn100B').disabled = true; }
-            else if (currentModelParams === 1e12) { trained1T = true; document.getElementById('btn1T').disabled = true; }
-            let modelSize = formatModelSize(currentModelParams) + " Params Model";
-            deployedModels.push({ name: modelSize, params: currentModelParams, gpuAllocation: 0, upgradeLevel: 0, powerModifier: 1.0, revenueModifier: 1.0 });
-            statusMessage("Training complete! Deployed new model: " + modelSize);
-            document.getElementById('modelName').textContent = "None"; currentModelParams = 0; renderDeployedModels();
-        }
-        function changeTrainGPU(delta) { trainGPUs += delta; if (trainGPUs < 0) trainGPUs = 0; clampAllAllocations(); document.getElementById('trainGPUInput').value = trainGPUs; renderDeployedModels(); updateUI(); }
-        function updateTrainGPUFromInput() { trainGPUs = parseInt(document.getElementById('trainGPUInput').value) || 0; if (trainGPUs < 0) trainGPUs = 0; clampAllAllocations(); document.getElementById('trainGPUInput').value = trainGPUs; renderDeployedModels(); updateUI(); }
-        function generateRevenue() {
-            for (let m of deployedModels) {
-                if (m.gpuAllocation > 0) {
-                    // Exponential decay factor
-                    let revenueScale = Math.pow(0.8, Math.log10(m.params / 1e6));
-                    let revPerSec = Math.sqrt(m.params) * revenueCoefficient * revenueScale * m.gpuAllocation * m.revenueModifier * efficiencyFactor;
-                    money += revPerSec * 0.1;
-                }
-            }
-        }
-        function consumePower() {
-            let totalInUse = trainGPUs + deployedModels.reduce((s, m) => s + m.gpuAllocation, 0), totalGPUsAvailable = getTotalGPUs();
-            if (totalInUse < 1 || totalGPUsAvailable < 1) return; let usageRatio = Math.min(1, totalInUse / totalGPUsAvailable);
-            let active4090 = usageRatio * type1GPUs, activeA6000 = usageRatio * type2GPUs, activeH100 = usageRatio * type3GPUs;
-            let activePG_4090 = usageRatio * parallelGroups[0] * 4, activePG_A6000 = usageRatio * parallelGroups[1] * 4, activePG_H100 = usageRatio * parallelGroups[2] * 4;
-            let cost4090 = (gpuTypePowerHour[0] / 3600) * (active4090 + activePG_4090), costA6000 = (gpuTypePowerHour[1] / 3600) * (activeA6000 + activePG_A6000), costH100 = (gpuTypePowerHour[2] / 3600) * (activeH100 + activePG_H100);
-            let powerCost = (cost4090 + costA6000 + costH100) * 0.1; money -= powerCost; if (money < 0) money = 0;
-        }
-        function clampAllAllocations() {
-            let totalGPUs = getTotalGPUs(); if (trainGPUs > totalGPUs) trainGPUs = totalGPUs; deployedModels.forEach(m => { if (m.gpuAllocation > totalGPUs) m.gpuAllocation = totalGPUs; });
-            let currentAllocated = trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0);
-            if (currentAllocated > totalGPUs) {
-                for (let i = deployedModels.length - 1; i >= 0; i--) {
-                    let over = (trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0)) - totalGPUs; if (over > 0) {
-                        let reduce = Math.min(over, deployedModels[i].gpuAllocation); deployedModels[i].gpuAllocation -= reduce;
-                    }
-                    if (trainGPUs + deployedModels.reduce((s, x) => s + x.gpuAllocation, 0) <= totalGPUs) break;
-                }
-            }
-        }
-        function renderDeployedModels() {
-            let tbody = document.getElementById('deployedTableBody'); tbody.innerHTML = "";
-            deployedModels.forEach((model, i) => {
-                let row = document.createElement('tr');
-                let tdN = document.createElement('td'); tdN.textContent = model.name; row.appendChild(tdN);
-                let tdP = document.createElement('td'); tdP.textContent = formatModelSize(model.params); row.appendChild(tdP);
-                let tdG = document.createElement('td'); let c = document.createElement('div'); c.className = "inline-controls";
-                let bMinus = document.createElement('button'); bMinus.textContent = "-"; bMinus.onclick = () => changeModelAllocation(i, -1);
-                let bPlus = document.createElement('button'); bPlus.textContent = "+"; bPlus.onclick = () => changeModelAllocation(i, 1);
-                let inAlloc = document.createElement('input'); inAlloc.type = "number"; inAlloc.min = "0"; inAlloc.step = "1"; inAlloc.value = model.gpuAllocation; inAlloc.onchange = () => setModelAllocation(i, inAlloc.value);
-                c.appendChild(bMinus); c.appendChild(inAlloc); c.appendChild(bPlus); tdG.appendChild(c); row.appendChild(tdG);
-                let tdU = document.createElement('td'); tdU.textContent = "Lv." + model.upgradeLevel; row.appendChild(tdU);
-                let pSec = (gpuTypePowerHour[0] / 3600) * model.gpuAllocation * model.powerModifier; let tdPw = document.createElement('td'); tdPw.textContent = "$" + pSec.toFixed(6); row.appendChild(tdPw);
-                // Revenue with exponential scaling
-                let revenueScale = Math.pow(0.8, Math.log10(model.params / 1e6));
-                let revPerSec = Math.sqrt(model.params) * revenueCoefficient * revenueScale * model.gpuAllocation * model.revenueModifier * efficiencyFactor;
-                let tdRev = document.createElement('td'); tdRev.textContent = "$" + revPerSec.toFixed(2); row.appendChild(tdRev);
-                let tdUp = document.createElement('td'); let upBtn = document.createElement('button'); let cost = baseUpgradeCost * Math.pow(upgradeCostScale, model.upgradeLevel);
-                upBtn.textContent = `Upgrade ($${cost.toFixed(2)})`; upBtn.onclick = () => upgradeModel(i); tdUp.appendChild(upBtn); row.appendChild(tdUp);
-                tbody.appendChild(row);
+
+        // --- Deployed Model Card Component ---
+        function DeployedModelCard({ model, eff, upgradeModel, allocateModelGPU, setModelAllocation, totalGPUs, gpuTypeFlops, gpuCounts }) {
+            const revenueScale = Math.pow(0.75, Math.log10(model.params / 1e6));
+            const revPerSec = Math.sqrt(model.params) * 0.01 * revenueScale * model.gpuAllocation * model.revenueModifier * eff;
+
+            const gpuDistribution = gpuTypeFlops.map((flops, index) => {
+                const totalFlops = gpuTypeFlops.reduce((acc, f, i) => acc + f * gpuCounts[i], 0);
+                return Math.round(model.gpuAllocation * ((flops * gpuCounts[index]) / totalFlops));
             });
+
+            return (
+                <Card>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <div className="text-lg font-bold">{model.name}</div>
+                            <div className={styles.label}>Level {model.upgradeLevel} • {(model.gpuAllocation / totalGPUs * 100).toFixed(0)}% Utilization</div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <LabeledValue label="Revenue" value={`+$${revPerSec.toFixed(2)}/s`} valueClass="text-green-400" labelClass="text-right" />
+                            <Button onClick={upgradeModel} style={styles.greenButton}>
+                                Upgrade (${(100 * Math.pow(1.5, model.upgradeLevel)).toFixed(2)})
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Performance Stats */}
+                        <div className="bg-gray-800 rounded-lg p-3">
+                            <div className={styles.label}>Current Performance</div>
+                            <div className="text-2xl font-bold">{(model.gpuAllocation * gpuTypeFlops.reduce((acc, f, i) => acc + f * gpuCounts[i], 0) * eff).toExponential(2)}</div>
+                            <div className={styles.label}>FLOPS</div>
+                        </div>
+
+                        {/* GPU Allocation */}
+                        <div className="bg-gray-800 rounded-lg p-3">
+                            <div className="flex justify-between items-center mb-2">
+                                <div className={styles.label}>GPU Allocation</div>
+                                <div className="text-sm text-blue-400">{model.gpuAllocation} GPUs</div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Button onClick={() => allocateModelGPU(-1)} style="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">-</Button>
+                                <div className="flex-1 bg-gray-700 rounded p-1">
+                                    <ProgressBar value={model.gpuAllocation} max={totalGPUs} />
+                                </div>
+                                <Button onClick={() => allocateModelGPU(1)} style="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">+</Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GPU Type Distribution */}
+                    <div className="space-y-2">
+                        <div className={styles.label}>GPU Distribution</div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {['RTX 4090', 'A6000', 'H100'].map((name, index) => (
+                                <div key={index} className="bg-gray-800 rounded p-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span>{name}</span>
+                                        <span>{gpuDistribution[index]}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </Card>
+            );
         }
-        function changeModelAllocation(index, delta) { let m = deployedModels[index]; m.gpuAllocation += delta; if (m.gpuAllocation < 0) m.gpuAllocation = 0; clampAllAllocations(); renderDeployedModels(); updateUI(); }
-        function setModelAllocation(index, val) { let m = deployedModels[index]; let v = parseInt(val) || 0; if (v < 0) v = 0; m.gpuAllocation = v; clampAllAllocations(); renderDeployedModels(); updateUI(); }
-        function upgradeModel(index) {
-            let model = deployedModels[index]; let cost = baseUpgradeCost * Math.pow(upgradeCostScale, model.upgradeLevel);
-            if (money < cost) { statusMessage("Not enough money to upgrade!"); return; } money -= cost; model.upgradeLevel++;
-            model.powerModifier *= upgradePowerFactor; model.revenueModifier *= upgradeRevenueFactor;
-            statusMessage(model.name + " upgraded to level " + model.upgradeLevel + "!"); renderDeployedModels();
+
+        // --- Inference Component ---
+        function Inference({ deployedModels, trainedModels, eff, upgradeModel, allocateModelGPU, setModelAllocation, setDeployedModels, formatModelSize, setStatusMessage, totalGPUs, gpuTypeFlops, gpuCounts }) {
+            return (
+                <Card>
+                    <SectionTitle>Model Deployment</SectionTitle>
+
+                    <div className="space-y-6">
+                        {deployedModels.map((model, i) => (
+                            <DeployedModelCard
+                                key={i}
+                                model={model}
+                                eff={eff}
+                                upgradeModel={() => upgradeModel(i)}
+                                allocateModelGPU={(delta) => allocateModelGPU(i, delta)}
+                                setModelAllocation={(val) => setModelAllocation(i, val)}
+                                totalGPUs={totalGPUs}
+                                gpuTypeFlops={gpuTypeFlops}
+                                gpuCounts={gpuCounts}
+                            />
+                        ))}
+
+                        {/* Available Models Section */}
+                        <div className="bg-gray-700 rounded-lg p-4">
+                            <h3 className="font-bold mb-3">Available Models</h3>
+                            <div className="space-y-3">
+                                {Object.keys(trainedModels).filter(tm => trainedModels[tm]).map(modelKey => {
+                                    const modelSize = formatModelSize(Number(modelKey));
+                                    const modelName = `${modelSize} Model`;
+                                    return (
+                                        <div key={modelKey} className="flex items-center justify-between bg-gray-800 rounded p-3">
+                                            <div>
+                                                <div className="font-bold">{modelName}</div>
+                                                <div className={styles.label}>Ready to deploy</div>
+                                            </div>
+                                            <Button onClick={() => {
+                                                const newModel = {
+                                                    name: modelName,
+                                                    params: Number(modelKey),
+                                                    gpuAllocation: 0,
+                                                    upgradeLevel: 0,
+                                                    powerModifier: 1.0,
+                                                    revenueModifier: 1.0
+                                                };
+                                                setDeployedModels(dm => [...dm, newModel]);
+                                                setStatusMessage(`Deployed new model: ${modelName}`);
+                                            }} style={styles.button}>
+                                                Deploy
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+            );
         }
-        function buyCooling(type) {
-            if (type === 'basic') { if (money >= costBasicFan) { money -= costBasicFan; basicFans++; statusMessage("Bought a Basic Fan!") } else { statusMessage("Not enough money for a Basic Fan.") } }
-            else if (type === 'advanced') { if (money >= costAdvancedFan) { money -= costAdvancedFan; advancedFans++; statusMessage("Bought an Advanced Fan!") } else { statusMessage("Not enough money for an Advanced Fan.") } }
-            else if (type === 'industrial') { if (money >= costIndustrialFan) { money -= costIndustrialFan; industrialFans++; statusMessage("Bought Industrial Cooling!") } else { statusMessage("Not enough money for Industrial Cooling.") } }
-            updateUI();
+
+        // --- Cooling Component ---
+        function Cooling({ heat, coolingOptions, buyCooling }) {
+            return (
+                <div className="mb-4">
+                    <h3 className={styles.label}>Cooling</h3>
+                    <div className="space-y-1 text-sm">
+                        {coolingOptions.map(option => (
+                            <div key={option.type} className="flex items-center justify-between">
+                                <span>{option.name} (${format.currency(option.cost)})</span>
+                                <div className="flex items-center space-x-2">
+                                    <Button onClick={() => buyCooling(option.type)} style="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs">Buy</Button>
+                                    <span>{option.count}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
         }
-        function updateUI() {
-            document.getElementById('moneyDisplay').textContent = money.toFixed(2); updateGPUInfo(); updateFlops();
-            document.getElementById('trainingProgress').textContent = trainingProgress.toFixed(2);
-            let totalPower = (gpuTypePowerHour[0] * (type1GPUs + parallelGroups[0] * 4)) + (gpuTypePowerHour[1] * (type2GPUs + parallelGroups[1] * 4)) + (gpuTypePowerHour[2] * (type3GPUs + parallelGroups[2] * 4));
-            let totalCount = getTotalGPUs(); let avgCost = 0; if (totalCount > 0) avgCost = totalPower / totalCount; document.getElementById('powerCostDisplay').textContent = "$" + avgCost.toFixed(3);
-            let allocated = trainGPUs + deployedModels.reduce((s, m) => s + m.gpuAllocation, 0), idle = getTotalGPUs() - allocated; if (idle < 0) idle = 0; document.getElementById('idleDisplay').textContent = idle;
-            document.getElementById('heatValue').textContent = heat.toFixed(1); let hp = (heat / 100) * 100; let hb = document.getElementById('heatBar'); hb.style.width = hp + "%";
-            if (heat < 50) { hb.style.backgroundColor = "green" } else if (heat < 75) { hb.style.backgroundColor = "yellow" } else if (heat < 90) { hb.style.backgroundColor = "orange" } else { hb.style.backgroundColor = "red" }
-            document.getElementById('basicFansCount').textContent = basicFans; document.getElementById('advancedFansCount').textContent = advancedFans; document.getElementById('industrialFansCount').textContent = industrialFans;
-            document.getElementById('trainGPUInput').value = trainGPUs;
+
+        // --- Power System Component ---
+        function PowerSystem({ currentPowerUsage, powerCapacity, solarPanels, windTurbines, fossilFuel, buySolar, buyWind, buyGrid }) {
+            const renewablePower = solarPanels * 5 + windTurbines * 7;
+            return (
+                <div>
+                    <h3 className={styles.label}>Power System</h3>
+                    <div className="space-y-2 text-sm">
+                        <div>
+                            <div className="flex justify-between mb-1">
+                                <span>Power Usage</span>
+                                <span>{currentPowerUsage.toFixed(1)}/{powerCapacity} kW + {renewablePower} (renewable)</span>
+                            </div>
+                            <ProgressBar value={currentPowerUsage} max={powerCapacity + renewablePower} />
+                        </div>
+                        <div>Fossil Fuel: {fossilFuel.toFixed(1)} kWh</div>
+
+                        <div className="flex items-center justify-between">
+                            <Button onClick={buySolar} style={styles.greenButton}>Buy Solar ($5k)</Button>
+                            <span>Owned: {solarPanels}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <Button onClick={buyWind} style={styles.greenButton}>Buy Wind ($7k)</Button>
+                            <span>Owned: {windTurbines}</span>
+                        </div>
+
+                        <Button onClick={buyGrid} style={styles.greenButton + ' w-full'}>Buy Grid Connection ($50k)</Button>
+                    </div>
+                </div>
+            );
         }
-        function updateFlops() { document.getElementById('flopsDisplay').textContent = getTotalFlops().toExponential(2); }
-        function checkWinCondition() { if (getTotalFlops() >= 2e29) { statusMessage("You have reached 2e29 FLOPS capacity. You win!") } }
-        function formatModelSize(p) { if (p >= 1e12) return (p / 1e12) + "T"; if (p >= 1e9) return (p / 1e9) + "B"; if (p >= 1e6) return (p / 1e6) + "M"; return p.toString() }
-        function statusMessage(msg) { document.getElementById('status').innerHTML = "<b>Status:</b> " + msg }
+
+        // --- Power Management Component ---
+        function PowerManagement({ heat, coolingOptions, buyCooling, currentPowerUsage, powerCapacity, solarPanels, windTurbines, fossilFuel, buySolar, buyWind, buyGrid }) {
+            return (
+                <Card>
+                    <SectionTitle>Power Management</SectionTitle>
+                    {/* Heat Display */}
+                    <div className="mb-4">
+                        <div className="flex justify-between text-sm mb-1">
+                            <span className="font-bold">Heat</span>
+                            <span>{heat.toFixed(1)}/100</span>
+                        </div>
+                        <ProgressBar
+                            value={heat}
+                            max={100}
+                            color={
+                                heat < 50 ? 'bg-green-500' : heat < 75 ? 'bg-yellow-500' : heat < 90 ? 'bg-orange-500' : 'bg-red-600'
+                            }
+                        />
+                    </div>
+
+                    <Cooling heat={heat} coolingOptions={coolingOptions} buyCooling={buyCooling} />
+
+                    <PowerSystem
+                        currentPowerUsage={currentPowerUsage}
+                        powerCapacity={powerCapacity}
+                        solarPanels={solarPanels}
+                        windTurbines={windTurbines}
+                        fossilFuel={fossilFuel}
+                        buySolar={buySolar}
+                        buyWind={buyWind}
+                        buyGrid={buyGrid}
+                    />
+                </Card>
+            );
+        }
+
+        // --- Active Models Component ---
+        function ActiveModels({ deployedModels, eff, gpuTypeFlops, gpuCounts }) {
+            return (
+                <Card>
+                    <h3 className="font-bold mb-4">Active Models</h3>
+                    <div className="space-y-3">
+                        {deployedModels.filter(m => m.gpuAllocation > 0).map((model, i) => {
+                            const revenueScale = Math.pow(0.75, Math.log10(model.params / 1e6));
+                            const revPerSec = Math.sqrt(model.params) * 0.01 * revenueScale * model.gpuAllocation * model.revenueModifier * eff;
+                            return (
+                                <div key={i} className="bg-gray-700 rounded-lg p-3">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold">{model.name}</div>
+                                            <div className={styles.label}>{model.gpuAllocation} GPUs</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className={styles.label}>Revenue</div>
+                                            <div className="text-green-400">+${revPerSec.toFixed(2)}/s</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </Card>
+            );
+        }
+
+        // --- System Status Component ---
+        function SystemStatus({ eff, heat, statusMessage }) {
+            return (
+                <Card>
+                    <h3 className="font-bold mb-4">System Status</h3>
+                    <div className="space-y-3">
+                        <LabeledValue label="Power Efficiency" value={`${(eff * 100).toFixed(0)}%`} valueClass="text-green-400" />
+                        <LabeledValue label="Cooling Status" value={heat < 50 ? 'Good' : heat < 75 ? 'Warning' : 'Critical'} valueClass={heat < 50 ? 'text-green-500' : heat < 75 ? 'text-orange-500' : 'text-red-600'} />
+                        <div className="flex justify-between items-center">
+                            <div className="text-sm"><b>Status:</b> {statusMessage}</div>
+                        </div>
+                    </div>
+                </Card>
+            );
+        }
+
+        // --- Footer Component ---
+        function Footer() {
+            return (
+                <Card>
+                    <div>
+                        <a href="https://lab.simonwisdom.com" className="text-blue-600 underline">
+                            lab.simonwisdom.com
+                        </a>
+                    </div>
+                </Card>
+            );
+        }
+
+        // --- Custom Hooks ---
+        const useGameState = () => {
+            // --- STATE HOOKS ---
+            const [money, setMoney] = React.useState(20);
+            const [gpuCounts, setGpuCounts] = React.useState([1, 0, 0]); // RTX 4090, A6000, H100 SXM5
+            const [parallelGroups, setParallelGroups] = React.useState([0, 0, 0]);
+            const [heat, setHeat] = React.useState(0);
+            const [coolingCounts, setCoolingCounts] = React.useState([0, 0, 0]); // Basic, Advanced, Industrial
+            const [fossilFuel, setFossilFuel] = React.useState(100);
+            const [powerCapacity, setPowerCapacity] = React.useState(20);
+            const [currentPowerUsage, setCurrentPowerUsage] = React.useState(0);
+            const [solarPanels, setSolarPanels] = React.useState(0);
+            const [windTurbines, setWindTurbines] = React.useState(0);
+            const [isTraining, setIsTraining] = React.useState(false);
+            const [trainGPUs, setTrainGPUs] = React.useState(0);
+            const [currentModelParams, setCurrentModelParams] = React.useState(0);
+            const [trainingProgress, setTrainingProgress] = React.useState(0);
+            const [trainedModels, setTrainedModels] = React.useState({
+                '1e6': false,
+                '1e9': false,
+                '1e10': false,
+                '1e11': false,
+                '1e12': false,
+            });
+            const [deployedModels, setDeployedModels] = React.useState([]);
+            const [statusMessage, setStatusMessage] = React.useState('Ready.');
+
+            // --- CONSTANTS ---
+            const gpuTypeCosts = [1600, 4800, 30400];
+            const gpuTypeFlops = [8.26e13, 1.497e14, 9.89e14];
+            const gpuTypePowerHour = [0.09, 0.07, 0.15];
+            const gpuTypeHeatFactor = [3.0, 4.0, 8.0];
+            const parallelBoostFactor = 4.0;
+
+            const coolingOptions = [
+                { type: 'basic', name: 'Basic Fan', cost: 2000, count: coolingCounts[0], coolingRate: 1 },
+                { type: 'advanced', name: 'Adv Fan', cost: 7500, count: coolingCounts[1], coolingRate: 4 },
+                { type: 'industrial', name: 'Industrial', cost: 25000, count: coolingCounts[2], coolingRate: 12 }
+            ];
+
+            const tokenCostPerMillion = 0.5;
+            const trainingFlopsCoefficient = 0.1;
+            const trainingFlopsScale = 1e-4;
+            const revenueCoefficient = 0.01;
+            const baseUpgradeCost = 100;
+            const upgradePowerFactor = 0.9, upgradeRevenueFactor = 1.2;
+            const upgradeCostScale = 1.5;
+
+            // --- DERIVED STATE ---
+            const getTotalGPUs = React.useCallback(() => {
+                return gpuCounts.reduce((sum, count) => sum + count, 0)
+                    + parallelGroups.reduce((sum, count) => sum + count, 0) * 4;
+            }, [gpuCounts, parallelGroups]);
+
+            const getTotalFlops = React.useCallback(() => {
+                return gpuTypeFlops.reduce((sum, flops, i) =>
+                    sum + parallelGroups[i] * (4 * flops * parallelBoostFactor) + gpuCounts[i] * flops, 0);
+            }, [gpuCounts, parallelGroups, gpuTypeFlops]);
+
+            const clampAllAllocations = React.useCallback((tGPUs, dModels, newTrainGPUs) => {
+                let sumAlloc = newTrainGPUs + dModels.reduce((s, m) => s + m.gpuAllocation, 0);
+                if (sumAlloc <= tGPUs) return { trainGPUs: newTrainGPUs, deployed: dModels };
+
+                let leftover = sumAlloc - tGPUs;
+                const newDeployed = [...dModels];
+                for (let i = newDeployed.length - 1; i >= 0 && leftover > 0; i--) {
+                    const reduce = Math.min(leftover, newDeployed[i].gpuAllocation);
+                    newDeployed[i] = { ...newDeployed[i], gpuAllocation: newDeployed[i].gpuAllocation - reduce };
+                    leftover -= reduce;
+                }
+                return { trainGPUs: Math.max(0, newTrainGPUs - leftover), deployed: newDeployed };
+            }, []);
+
+            
+
+            // --- LOGIC FUNCTIONS ---
+            const updatePower = React.useCallback((totalGPUs) => {
+                const idlePower = 0.2 * totalGPUs;
+                let trainingPower = isTraining && trainGPUs > 0 ? 20 * Math.min(1, trainGPUs / totalGPUs) : 0;
+                let servingPower = deployedModels.reduce((sum, m) => sum + (m.gpuAllocation > 0 ? 2 : 0), 0);
+                const coolingPower = coolingOptions.reduce((sum, option) => sum + option.count * option.coolingRate * 0.1, 0);
+
+                let newPowerUsage = idlePower + trainingPower + servingPower + coolingPower;
+                const totalRenewables = solarPanels * 5 + windTurbines * 7;
+                const availablePower = powerCapacity + totalRenewables;
+
+                if (newPowerUsage > availablePower) {
+                    if (isTraining) {
+                        setIsTraining(false);
+                        setTrainingProgress(tp => Math.max(tp - 1, 0));
+                        setStatusMessage('Training halted due to power shortage!');
+                    }
+                    newPowerUsage = availablePower;
+                }
+
+                let consumptionPerSecond = newPowerUsage / 3600 * 0.1;
+                setFossilFuel(ff => {
+                    let nextFF = ff - consumptionPerSecond;
+                    if (nextFF < 0) {
+                        nextFF = 0;
+                        setStatusMessage('Fossil fuel depleted!');
+                    }
+                    if (nextFF <= 0 && newPowerUsage > totalRenewables) {
+                        newPowerUsage = totalRenewables;
+                        setStatusMessage('Running on renewables only; limited performance.');
+                    }
+                    return nextFF;
+                });
+
+                setCurrentPowerUsage(newPowerUsage);
+            }, [isTraining, trainGPUs, deployedModels, coolingOptions, solarPanels, windTurbines, powerCapacity]);
+
+            const updateHeat = React.useCallback((totalGPUs) => {
+                const totalInUse = trainGPUs + deployedModels.reduce((s, m) => s + m.gpuAllocation, 0);
+                setHeat(h => {
+                    let newHeat = h;
+                    if (totalInUse < 1 || totalGPUs < 1) {
+                        newHeat -= 0.1;
+                    } else {
+                        const usageRatio = Math.min(1, totalInUse / totalGPUs);
+                        let heatGenerated = gpuTypeHeatFactor.reduce((sum, factor, i) =>
+                            sum + usageRatio * (gpuCounts[i] + parallelGroups[i] * 4) * factor, 0) * 0.1;
+                        heatGenerated *= (1.0 + parallelGroups.reduce((sum, count) => sum + count, 0) * 0.3);
+                        const heatRemoved = coolingOptions.reduce((sum, option) => sum + option.count * option.coolingRate, 0) * 0.1;
+                        newHeat += (heatGenerated - heatRemoved);
+                    }
+                    newHeat = Math.max(0, Math.min(newHeat, 100));
+                    if (newHeat >= 90 && Math.random() < 0.002 && totalGPUs > 0) {
+                        randomRemoveOneGPU();
+                        setStatusMessage('One GPU failed due to overheating!');
+                    }
+                    return newHeat;
+                });
+            }, [trainGPUs, deployedModels, gpuCounts, parallelGroups, gpuTypeHeatFactor, coolingOptions]);
+
+            const effectiveEfficiency = React.useCallback(() => {
+                const totalRaw = gpuTypeFlops.reduce((sum, flops, i) => sum + (gpuCounts[i] + parallelGroups[i] * 4) * flops, 0);
+                const totalReal = gpuTypeFlops.reduce((sum, flops, i) =>
+                    sum + (gpuCounts[i] * flops) + parallelGroups[i] * 4 * flops * parallelBoostFactor, 0);
+                let ratio = totalRaw > 0 ? totalReal / totalRaw : 1.0;
+
+                if (heat >= 25) ratio *= 0.9;
+                if (heat >= 50) ratio *= 0.6;
+                if (heat >= 75) ratio *= 0.3;
+                if (heat >= 90) ratio *= 0.15;
+                return ratio;
+            }, [gpuCounts, parallelGroups, gpuTypeFlops, heat]);
+
+            const updateTraining = React.useCallback(() => {
+                if (!isTraining || currentModelParams <= 0 || trainGPUs <= 0) return;
+
+                const neededTokens = currentModelParams * 20;
+                const flopsNeeded = trainingFlopsCoefficient * currentModelParams * neededTokens * trainingFlopsScale;
+                const tGPUs = getTotalGPUs();
+                if (tGPUs === 0) return;
+
+                const trainingFrac = trainGPUs / tGPUs;
+                const allocatedFlops = getTotalFlops() * trainingFrac;
+                const flopsThisTick = allocatedFlops * 0.1 * effectiveEfficiency();
+                const fractionDone = flopsThisTick / flopsNeeded;
+
+                setTrainingProgress(tp => {
+                    const newProg = tp + fractionDone * 100;
+                    if (newProg >= 100) {
+                        finishTraining();
+                        return 100;
+                    }
+                    return newProg;
+                });
+            }, [isTraining, currentModelParams, trainGPUs, getTotalGPUs, getTotalFlops, effectiveEfficiency, trainingFlopsCoefficient, trainingFlopsScale]);
+
+            const finishTraining = React.useCallback(() => {
+                setIsTraining(false);
+                setTrainedModels(prev => ({ ...prev, [String(currentModelParams)]: true }));
+
+                const newModelName = `${format.modelSize(currentModelParams)} Params Model`;
+                const newModel = {
+                    name: newModelName,
+                    params: currentModelParams,
+                    gpuAllocation: 0,
+                    upgradeLevel: 0,
+                    powerModifier: 1.0,
+                    revenueModifier: 1.0
+                };
+                setDeployedModels(dm => [...dm, newModel]);
+                setStatusMessage(`Training complete! Deployed new model: ${newModelName}`);
+                setCurrentModelParams(0);
+            }, [currentModelParams]);
+
+            const generateRevenue = React.useCallback(() => {
+                const eff = effectiveEfficiency();
+                setMoney(prevMoney => {
+                    let newMoney = prevMoney;
+                    for (let m of deployedModels) {
+                        if (m.gpuAllocation > 0) {
+                            const revenueScale = Math.pow(0.75, Math.log10(m.params / 1e6));
+                            const revPerSec = Math.sqrt(m.params) * revenueCoefficient * revenueScale * m.gpuAllocation * m.revenueModifier * eff;
+                            newMoney += revPerSec * 0.1;
+                        }
+                    }
+                    return newMoney;
+                });
+            }, [deployedModels, effectiveEfficiency, revenueCoefficient]);
+
+            const consumePower = React.useCallback((totalGPUs) => {
+                const tInUse = trainGPUs + deployedModels.reduce((s, m) => s + m.gpuAllocation, 0);
+                if (tInUse < 1 || totalGPUs < 1) return;
+
+                const usageRatio = Math.min(1, tInUse / totalGPUs);
+                const powerCost = gpuTypePowerHour.reduce((sum, powerHour, i) =>
+                    sum + (powerHour / 3600) * usageRatio * (gpuCounts[i] + parallelGroups[i] * 4), 0) * 0.1;
+
+                setMoney(m => {
+                    const newVal = m - powerCost;
+                    return newVal < 0 ? 0 : newVal;
+                });
+            }, [trainGPUs, deployedModels, gpuCounts, parallelGroups, gpuTypePowerHour]);
+
+            const checkWinCondition = React.useCallback(() => {
+                if (getTotalFlops() >= 2e29) {
+                    setStatusMessage('You have reached 2e29 FLOPS capacity. You win!');
+                }
+            }, [getTotalFlops]);
+
+            // --- GAME LOOP (using useCallback for memoization) ---
+            const gameLoop = React.useCallback(() => {
+                const totalGPUs = getTotalGPUs();
+                updatePower(totalGPUs);
+                updateHeat(totalGPUs);
+                updateTraining();
+                generateRevenue();
+                consumePower(totalGPUs);
+                checkWinCondition();
+            }, [getTotalGPUs, updatePower, updateHeat, updateTraining, generateRevenue, consumePower, checkWinCondition]);
+
+            React.useEffect(() => {
+                const timer = setInterval(gameLoop, 100);
+                return () => clearInterval(timer);
+            }, [gameLoop]);
+
+            // --- ACTIONS ---
+            const buyGPU = React.useCallback((typeIndex) => {
+                if (money < gpuTypeCosts[typeIndex]) {
+                    setStatusMessage('Not enough money to buy this GPU!');
+                    return;
+                }
+                setMoney(m => m - gpuTypeCosts[typeIndex]);
+                setGpuCounts(counts => counts.map((count, i) => i === typeIndex ? count + 1 : count));
+                setStatusMessage('GPU purchased!');
+            }, [money, gpuTypeCosts]);
+
+            const parallelizeGPU = React.useCallback((typeIndex) => {
+                if (gpuCounts[typeIndex] < 4) {
+                    setStatusMessage('Not enough GPUs to form a group of 4!');
+                    return;
+                }
+                const cost = 150000 + 75000 * parallelGroups[typeIndex];
+                if (money < cost) {
+                    setStatusMessage('Not enough money to parallelize!');
+                    return;
+                }
+                setMoney(m => m - cost);
+                setParallelGroups(pg => pg.map((count, i) => i === typeIndex ? count + 1 : count));
+                setGpuCounts(counts => counts.map((count, i) => i === typeIndex ? count - 4 : count));
+                setStatusMessage(`Parallelized 4 GPUs of type ${typeIndex}!`);
+            }, [gpuCounts, parallelGroups, money]);
+
+            const startTraining = React.useCallback((params) => {
+                if (isTraining) {
+                    setStatusMessage('A training job is already in progress.');
+                    return;
+                }
+                if (trainedModels[String(params)]) {
+                    setStatusMessage('This model was already trained. You can’t train it again.');
+                    return;
+                }
+                const costForTokens = params * 20 / 1e6 * tokenCostPerMillion;
+                if (money < costForTokens) {
+                    setStatusMessage('Not enough money for token purchase!');
+                    return;
+                }
+                setMoney(m => m - costForTokens);
+                setIsTraining(true);
+                setTrainingProgress(0);
+                setCurrentModelParams(params);
+                setStatusMessage(`Started training ${format.modelSize(params)} params model.`);
+            }, [isTraining, trainedModels, tokenCostPerMillion, money]);
+
+            const changeTrainGPU = React.useCallback((delta) => {
+                const newVal = Math.max(0, trainGPUs + delta);
+                const { trainGPUs: cT, deployed } = clampAllAllocations(getTotalGPUs(), deployedModels, newVal);
+                setTrainGPUs(cT);
+                setDeployedModels(deployed);
+            }, [trainGPUs, clampAllAllocations, getTotalGPUs, deployedModels]);
+
+            const setTrainGPUInput = React.useCallback((val) => {
+                const newVal = Math.max(0, Number(val) || 0);
+                const { trainGPUs: cT, deployed } = clampAllAllocations(getTotalGPUs(), deployedModels, newVal);
+                setTrainGPUs(cT);
+                setDeployedModels(deployed);
+            }, [clampAllAllocations, getTotalGPUs, deployedModels]);
+
+            const allocateModelGPU = React.useCallback((index, delta) => {
+                const dCopy = [...deployedModels];
+                const newVal = dCopy[index].gpuAllocation + delta;
+                dCopy[index] = { ...dCopy[index], gpuAllocation: Math.max(0, newVal) };
+                const { trainGPUs: cT, deployed } = clampAllAllocations(getTotalGPUs(), dCopy, trainGPUs);
+                setTrainGPUs(cT);
+                setDeployedModels(deployed);
+            }, [deployedModels, clampAllAllocations, getTotalGPUs, trainGPUs]);
+
+            const setModelAllocation = React.useCallback((index, val) => {
+                const nVal = Math.max(0, Number(val) || 0);
+                const dCopy = [...deployedModels];
+                dCopy[index] = { ...dCopy[index], gpuAllocation: nVal };
+                const { trainGPUs: cT, deployed } = clampAllAllocations(getTotalGPUs(), dCopy, trainGPUs);
+                setTrainGPUs(cT);
+                setDeployedModels(deployed);
+            }, [deployedModels, clampAllAllocations, getTotalGPUs, trainGPUs]);
+
+            const upgradeModel = React.useCallback((index) => {
+                const model = deployedModels[index];
+                const cost = baseUpgradeCost * Math.pow(upgradeCostScale, model.upgradeLevel);
+                if (money < cost) {
+                    setStatusMessage('Not enough money to upgrade!');
+                    return;
+                }
+                setMoney(m => m - cost);
+                const newModel = {
+                    ...model,
+                    upgradeLevel: model.upgradeLevel + 1,
+                    powerModifier: model.powerModifier * upgradePowerFactor,
+                    revenueModifier: model.revenueModifier * upgradeRevenueFactor
+                };
+                setDeployedModels(dm => dm.map((m, i) => i === index ? newModel : m));
+                setStatusMessage(`${model.name} upgraded to level ${newModel.upgradeLevel}!`);
+            }, [deployedModels, baseUpgradeCost, upgradeCostScale, money, upgradePowerFactor, upgradeRevenueFactor]);
+
+            const buyCooling = React.useCallback((type) => {
+                const option = coolingOptions.find(o => o.type === type);
+                if (money < option.cost) {
+                    setStatusMessage(`Not enough money for ${option.name}.`);
+                    return;
+                }
+                setMoney(m => m - option.cost);
+                setCoolingCounts(counts => counts.map((count, i) => i === coolingOptions.indexOf(option) ? count + 1 : count));
+                setStatusMessage(`Bought a ${option.name}!`);
+            }, [money, coolingOptions]);
+
+            const buySolar = React.useCallback(() => {
+                if (money < 5000) {
+                    setStatusMessage('Not enough money for Solar Panel!');
+                    return;
+                }
+                setMoney(m => m - 5000);
+                setSolarPanels(sp => sp + 1);
+                setStatusMessage('Bought a Solar Panel!');
+            }, [money]);
+
+            const buyWind = React.useCallback(() => {
+                if (money < 7000) {
+                    setStatusMessage('Not enough money for Wind Turbine!');
+                    return;
+                }
+                setMoney(m => m - 7000);
+                setWindTurbines(w => w + 1);
+                setStatusMessage('Bought a Wind Turbine!');
+            }, [money]);
+
+            const buyGrid = React.useCallback(() => {
+                if (money < 50000) {
+                    setStatusMessage('Not enough money for Grid Connection!');
+                    return;
+                }
+                setMoney(m => m - 50000);
+                setPowerCapacity(pc => pc + 50);
+                setStatusMessage('Connected to the Grid! +50 kW capacity');
+            }, [money]);
+
+            const randomRemoveOneGPU = React.useCallback(() => {
+                const result = [];
+                if (gpuCounts[0] > 0) result.push('t1');
+                if (gpuCounts[1] > 0) result.push('t2');
+                if (gpuCounts[2] > 0) result.push('t3');
+                if (parallelGroups[0] > 0) result.push('pg0');
+                if (parallelGroups[1] > 0) result.push('pg1');
+                if (parallelGroups[2] > 0) result.push('pg2');
+                if (!result.length) return;
+
+                const choice = result[Math.floor(Math.random() * result.length)];
+                if (choice === 't1') setGpuCounts(c => [c[0] - 1, c[1], c[2]]);
+                if (choice === 't2') setGpuCounts(c => [c[0], c[1] - 1, c[2]]);
+                if (choice === 't3') setGpuCounts(c => [c[0], c[1], c[2] - 1]);
+                if (choice === 'pg0') setParallelGroups(p => [p[0] - 1, p[1], p[2]]);
+                if (choice === 'pg1') setParallelGroups(p => [p[0], p[1] - 1, p[2]]);
+                if (choice === 'pg2') setParallelGroups(p => [p[0], p[1], p[2] - 1]);
+            }, [gpuCounts, parallelGroups]);
+
+            return {
+                money,
+                gpuCounts,
+                parallelGroups,
+                heat,
+                coolingCounts,
+                fossilFuel,
+                powerCapacity,
+                currentPowerUsage,
+                solarPanels,
+                windTurbines,
+                isTraining,
+                trainGPUs,
+                currentModelParams,
+                trainingProgress,
+                trainedModels,
+                deployedModels,
+                statusMessage,
+                gpuTypeCosts,
+                gpuTypeFlops,
+                coolingOptions,
+                getTotalGPUs,
+                getTotalFlops,
+                effectiveEfficiency,
+                buyGPU,
+                parallelizeGPU,
+                startTraining,
+                changeTrainGPU,
+                setTrainGPUInput,
+                allocateModelGPU,
+                setModelAllocation,
+                upgradeModel,
+                buyCooling,
+                buySolar,
+                buyWind,
+                buyGrid,
+                setDeployedModels,
+                setStatusMessage,
+            };
+        };
+
+        // --- MAIN GAME COMPONENT ---
+        function GameUI() {
+            const {
+                money, gpuCounts, parallelGroups, heat, coolingCounts,
+                fossilFuel, powerCapacity, currentPowerUsage, solarPanels,
+                windTurbines, isTraining, trainGPUs, currentModelParams,
+                trainingProgress, trainedModels, deployedModels, statusMessage,
+                gpuTypeCosts, gpuTypeFlops, coolingOptions,
+                getTotalGPUs, getTotalFlops, effectiveEfficiency,
+                buyGPU, parallelizeGPU, startTraining, changeTrainGPU,
+                setTrainGPUInput, allocateModelGPU, setModelAllocation,
+                upgradeModel, buyCooling, buySolar, buyWind,
+                buyGrid, setDeployedModels, setStatusMessage
+            } = useGameState();
+
+            const [activeSystem, setActiveSystem] = React.useState('compute');
+
+            // --- RENDER ---
+            const eff = effectiveEfficiency();
+            const totalFlopsDisplay = getTotalFlops().toExponential(2);
+            const revPerSec = deployedModels.reduce((totalRev, m) => {
+                if (m.gpuAllocation > 0) {
+                    const revenueScale = Math.pow(0.75, Math.log10(m.params / 1e6));
+                    return totalRev + Math.sqrt(m.params) * 0.01 * revenueScale * m.gpuAllocation * m.revenueModifier * eff;
+                }
+                return totalRev;
+            }, 0);
+
+            const gpuTypes = [
+                { name: 'RTX 4090', count: gpuCounts[0] },
+                { name: 'A6000', count: gpuCounts[1] },
+                { name: 'H100 SXM5', count: gpuCounts[2] }
+            ];
+
+            return (
+                <div className="min-h-screen bg-gray-900 text-white">
+                    <CoreResourceBar
+                        money={money}
+                        revPerSec={revPerSec}
+                        totalFlopsDisplay={totalFlopsDisplay}
+                        currentPowerUsage={currentPowerUsage}
+                        powerCapacity={powerCapacity}
+                        solarPanels={solarPanels}
+                        windTurbines={windTurbines}
+                        heat={heat}
+                    />
+
+                    <div className="container mx-auto p-4">
+                        <CoreLoopVisualization
+                            totalGPUs={getTotalGPUs()}
+                            parallelGroups={parallelGroups}
+                            trainGPUs={trainGPUs}
+                            revPerSec={revPerSec}
+                        />
+
+                        <SystemNavigation
+                            activeSystem={activeSystem}
+                            setActiveSystem={setActiveSystem}
+                        />
+
+                        <div className="grid grid-cols-12 gap-6">
+                            <div className="col-span-8">
+                                {activeSystem === 'compute' && (
+                                    <GPUManagement
+                                        gpuTypes={gpuTypes}
+                                        parallelGroups={parallelGroups}
+                                        buyGPU={buyGPU}
+                                        parallelizeGPU={parallelizeGPU}
+                                        gpuTypeCosts={gpuTypeCosts}
+                                        gpuTypeFlops={gpuTypeFlops}
+                                    />
+                                )}
+
+                                {activeSystem === 'training' && (
+                                    <TrainingCenter
+                                        isTraining={isTraining}
+                                        currentModelParams={currentModelParams}
+                                        trainingProgress={trainingProgress}
+                                        trainGPUs={trainGPUs}
+                                        trainedModels={trainedModels}
+                                        changeTrainGPU={changeTrainGPU}
+                                        setTrainGPUInput={setTrainGPUInput}
+                                        startTraining={startTraining}
+                                        formatModelSize={format.modelSize}
+                                    />
+                                )}
+
+                                {activeSystem === 'inference' && (
+                                    <Inference
+                                        deployedModels={deployedModels}
+                                        trainedModels={trainedModels}
+                                        eff={eff}
+                                        upgradeModel={upgradeModel}
+                                        allocateModelGPU={allocateModelGPU}
+                                        setModelAllocation={setModelAllocation}
+                                        setDeployedModels={setDeployedModels}
+                                        formatModelSize={format.modelSize}
+                                        setStatusMessage={setStatusMessage}
+                                        totalGPUs={getTotalGPUs()}
+                                        gpuTypeFlops={gpuTypeFlops}
+                                        gpuCounts={gpuCounts}
+                                    />
+                                )}
+
+                                {activeSystem === 'power' && (
+                                    <PowerManagement
+                                        heat={heat}
+                                        coolingOptions={coolingOptions}
+                                        buyCooling={buyCooling}
+                                        currentPowerUsage={currentPowerUsage}
+                                        powerCapacity={powerCapacity}
+                                        solarPanels={solarPanels}
+                                        windTurbines={windTurbines}
+                                        fossilFuel={fossilFuel}
+                                        buySolar={buySolar}
+                                        buyWind={buyWind}
+                                        buyGrid={buyGrid}
+                                    />
+                                )}
+                            </div>
+
+                            <div className="col-span-4 space-y-6">
+                                <ActiveModels
+                                    deployedModels={deployedModels}
+                                    eff={eff}
+                                    gpuTypeFlops={gpuTypeFlops}
+                                    gpuCounts={gpuCounts}
+                                />
+
+                                <SystemStatus
+                                    eff={eff}
+                                    heat={heat}
+                                    statusMessage={statusMessage}
+                                />
+
+                                <Footer />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render with error boundary
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true };
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return <div className="p-4 text-red-600">Something went wrong. Please refresh the page.</div>;
+                }
+                return this.props.children;
+            }
+        }
+
+        root.render(
+            <ErrorBoundary>
+                <GameUI />
+            </ErrorBoundary>
+        );
+    </script>
+
+    <!-- Progressive enhancement -->
+    <noscript>
+        <div class="p-4">
+            Please enable JavaScript to play this game.
+        </div>
+    </noscript>
+
+    <script>
+        window.addEventListener('load', function () {
+            if (!window.React || !window.ReactDOM || !window.Babel) {
+                console.log('Missing:', {
+                    React: !!window.React,
+                    ReactDOM: !!window.ReactDOM,
+                    Babel: !!window.Babel
+                });
+                document.getElementById('root').innerHTML =
+                    '<div class="p-4">Your browser may not support this application. Missing required libraries.</div>';
+            }
+        });
     </script>
 </body>
 
