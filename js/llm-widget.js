@@ -6,7 +6,7 @@ export class LLMWidget extends HTMLElement {
         this.attachShadow({ mode: 'open' });
 
         this.providers = [
-            { id: 'free', name: 'Free Proxy (Gemini)' },
+            { id: 'free', name: 'Free (Gemini Flash 1.5)' },
             { id: 'anthropic', name: 'Anthropic (BYO API Key)' },
             { id: 'openai', name: 'OpenAI (BYO API Key)' },
             { id: 'gemini', name: 'Gemini (BYO API Key)' },
@@ -137,6 +137,21 @@ export class LLMWidget extends HTMLElement {
                 .settings-group:last-child {
                     margin-bottom: 0;
                 }
+                    .settings-footer {
+                    margin-top: 1rem;
+                    padding-top: 1rem;
+                    border-top: 1px solid #E5E7EB;
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                
+                .save-button {
+                    background: #10B981;
+                }
+                
+                .save-button:hover:not(:disabled) {
+                    background: #059669;
+                }
                 label {
                     display: block;
                     font-size: 0.875rem;
@@ -251,6 +266,10 @@ export class LLMWidget extends HTMLElement {
                         <label for="apiKey">API Key</label>
                         <input type="password" id="apiKey" placeholder="Enter your API key">
                     </div>
+
+                    <div class="settings-footer">
+                        <button type="button" id="saveSettings" class="save-button">Save Settings</button>
+                    </div>
                 </div>
 
                 <!-- Main Chat Interface -->
@@ -274,6 +293,7 @@ export class LLMWidget extends HTMLElement {
     }
 
     attachEventListeners() {
+        const saveButton = this.shadowRoot.getElementById('saveSettings');
         const settingsButton = this.shadowRoot.getElementById('settingsButton');
         const settingsPanel = this.shadowRoot.getElementById('settingsPanel');
         const providerSelect = this.shadowRoot.getElementById('provider');
@@ -335,27 +355,58 @@ export class LLMWidget extends HTMLElement {
             }
         });
 
-        // API key validation
-        let validateTimeout;
-        apiKeyInput?.addEventListener('input', (e) => {
-            clearTimeout(validateTimeout);
-            validateTimeout = setTimeout(async () => {
-                const apiKey = e.target.value.trim();
-                if (!apiKey) {
-                    e.target.classList.remove('api-key-valid', 'api-key-invalid');
-                    return;
-                }
-                
-                const isValid = await this.client.validateApiKey(apiKey);
-                e.target.classList.remove('api-key-valid', 'api-key-invalid');
-                e.target.classList.add(isValid ? 'api-key-valid' : 'api-key-invalid');
-                
-                if (this.client) {
-                    this.client.config.apiKey = apiKey;
-                    this.client.initialized = false;
-                }
-            }, 500);
+        saveButton?.addEventListener('click', () => {
+            // Save the current settings
+            const apiKeyInput = this.shadowRoot.getElementById('apiKey');
+            const providerSelect = this.shadowRoot.getElementById('provider');
+            const modelSelect = this.shadowRoot.getElementById('model');
+
+            // Update client configuration
+            if (this.client) {
+                this.client.config = {
+                    ...this.client.config,
+                    apiKey: apiKeyInput?.value || '',
+                    provider: providerSelect?.value || 'free',
+                    model: modelSelect?.value || '',
+                    useOwnKey: providerSelect?.value !== 'free'
+                };
+                this.client.initialized = false;
+            }
+
+            // Close the settings panel
+            settingsPanel.classList.remove('visible');
+            settingsButton.classList.remove('active');
         });
+
+         // API key validation with error handling
+         let validateTimeout;
+         
+         apiKeyInput?.addEventListener('input', (e) => {
+             clearTimeout(validateTimeout);
+             validateTimeout = setTimeout(async () => {
+                 const apiKey = e.target?.value;
+                 if (!apiKey || typeof apiKey !== 'string') {
+                     e.target?.classList.remove('api-key-valid', 'api-key-invalid');
+                     return;
+                 }
+                 
+                 try {
+                     const trimmedKey = apiKey.trim();
+                     if (!trimmedKey) {
+                         e.target.classList.remove('api-key-valid', 'api-key-invalid');
+                         return;
+                     }
+ 
+                     const isValid = await this.client?.validateApiKey(trimmedKey);
+                     e.target.classList.remove('api-key-valid', 'api-key-invalid');
+                     e.target.classList.add(isValid ? 'api-key-valid' : 'api-key-invalid');
+                 } catch (error) {
+                     console.error('Error validating API key:', error);
+                     e.target.classList.remove('api-key-valid', 'api-key-invalid');
+                     e.target.classList.add('api-key-invalid');
+                 }
+             }, 500);
+         });
 
         // Form submission
         messageForm.addEventListener('submit', async (e) => {
