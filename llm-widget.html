@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Widget</title>
+    <script src="js/common.js"></script>
+    <script type="module" src="js/llm-widget.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-LLM Static Widget</h1>
+        <p>This is a static widget that allows you to interact with multiple LLMs.
+
+        <llm-widget></llm-widget>
+
+        <p>The free version routes via a proxy hosted on Vercel to the Gemini Flash 1.5 <a href="https://ai.google.dev/pricing#1_5flash" target="_blank">free tier endpoint</a>. If you choose to provide an API key, it uses <a href="https://amanpriyanshu.github.io/API-LLM-Hub/" target="_blank">API-LLM-Hub</a> to send the request, and <a href="https://github.com/Helicone/helicone/tree/main/costs/src/providers" target="_blank">Helicone costs</a> to get the LLM providers and models.</p>
+    </div>
+</body>
+</html>
