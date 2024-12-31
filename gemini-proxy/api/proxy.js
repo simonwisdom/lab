@@ -3,9 +3,28 @@ import fetch from 'node-fetch';
 export default async function handler(req, res) {
   console.log('Function started');
   console.log('Request method:', req.method);
+  
+  // Get the origin from the request headers
+  const origin = req.headers.origin;
+  console.log('Request origin:', origin);
 
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Check if the origin ends with simonwisdom.com
+  const isAllowed = origin && (
+    origin.endsWith('simonwisdom.com') 
+    // || 
+    // origin === 'http://localhost:3000'
+  );
+  
+  if (!isAllowed) {
+    console.log('Unauthorized origin:', origin);
+    return res.status(403).json({
+      error: 'Unauthorized origin',
+      message: 'This endpoint can only be accessed from allowed domains'
+    });
+  }
+
+  // Set CORS headers only for allowed domains
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
