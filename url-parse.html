@@ -1,677 +1,679 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>URL Content Analyzer</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="js/common.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Content Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="js/common.js"></script>
 </head>
+
 <body>
-  <div class="container">
-    <header class="header">
-      <h1>URL Content Analyzer</h1>
-      <p>Analyze multiple web pages using AI. Enter URLs and specify how you want to analyze their content.</p>
-    </header>
+    <div class="container">
+        <header class="header">
+            <h1>URL Content Analyzer</h1>
+            <p>Analyze multiple web pages using AI. Enter URLs and specify how you want to analyze their content.</p>
+        </header>
 
-    <main>
+        <main>
 
 
-      <!-- Step 1: URLs -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number">1</div>
-          <h2>Enter URLs to Analyze</h2>
-        </div>
-        <div class="card-content">
-          <div class="form-group">
-            <textarea 
-              id="urls" 
-              class="form-control"
-              placeholder="Enter URLs, one per line&#10;Example: https://example.com"
-            ></textarea>
-            <div class="help-text">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                <line x1="12" y1="17" x2="12" y2="17"></line>
-              </svg>
-              <span id="urlStats">URLs: <span id="urlCount">0</span></span>
-              <span id="urlLimit" class="warning"></span>
+            <!-- Step 1: URLs -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="step-number">1</div>
+                    <h2>Enter URLs to Analyze</h2>
+                </div>
+                <div class="card-content">
+                    <div class="form-group">
+                        <textarea id="urls" class="form-control"
+                            placeholder="Enter URLs, one per line&#10;eg: &#10;https://example.com&#10;https://wikipedia.org"></textarea>
+                        <div class="help-text">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                <line x1="12" y1="17" x2="12" y2="17"></line>
+                            </svg>
+                            <span id="urlStats">URLs: <span id="urlCount">0</span></span>
+                            <span id="urlLimit" class="warning"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
 
 
 
-      <!-- Step 2: Analysis Prompt -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number">2</div>
-          <h2>Configure Analysis</h2>
-        </div>
-        <div class="card-content">
-          <div class="form-group">
-            <label for="prompt">Analysis Prompt</label>
-            <textarea 
-              id="prompt"
-              class="form-control"
-              placeholder="Example: Summarize the main points and extract key statistics from this webpage"
-            ></textarea>
-            <div class="help-text" id="promptStats">
-              Estimated prompt tokens: <span id="promptTokens">0</span>
+            <!-- Step 2: Analysis Prompt -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="step-number">2</div>
+                    <h2>Configure Analysis</h2>
+                </div>
+                <div class="card-content">
+                    <div class="form-group">
+                        <label for="prompt">Analysis Prompt</label>
+                        <textarea id="prompt" class="form-control"
+                            placeholder="Example: Summarize the main points and extract key statistics from this webpage"></textarea>
+                        <div class="help-text" id="promptStats">
+                            Estimated prompt tokens: <span id="promptTokens">0</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
 
             <!-- Step 3: Provider Selection -->
             <div class="card">
                 <div class="card-header">
-                  <div class="step-number">3</div>
-                  <h2>Select Provider</h2>
+                    <div class="step-number">3</div>
+                    <h2>Select Provider</h2>
                 </div>
                 <div class="card-content">
-                  <div class="form-group">
-                    <select id="provider" class="form-control">
-                      <option value="free">Free (Gemini Flash 1.5)</option>
-                      <option value="anthropic">Anthropic (BYO API Key)</option>
-                      <option value="openai">OpenAI (BYO API Key)</option>
-                      <option value="gemini">Gemini (BYO API Key)</option>
-                      <option value="togetherai">TogetherAI (BYO API Key)</option>
-                    </select>
-        
-                    <div id="apiKeyGroup" class="api-key-section">
-                      <div class="form-group">
-                        <label for="apiKey">API Key</label>
-                        <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
-                      </div>
-                      
-                      <div class="form-group">
-                        <label for="model">Model</label>
-                        <select id="model" class="form-control">
-                          <option value="">Loading models...</option>
+                    <div class="form-group">
+                        <select id="provider" class="form-control">
+                            <option value="free">Free (Gemini Flash 1.5)</option>
+                            <option value="anthropic">Anthropic (BYO API Key)</option>
+                            <option value="openai">OpenAI (BYO API Key)</option>
+                            <option value="gemini">Gemini (BYO API Key)</option>
+                            <option value="togetherai">TogetherAI (BYO API Key)</option>
                         </select>
-                      </div>
+
+                        <div id="apiKeyGroup" class="api-key-section">
+                            <div class="form-group">
+                                <label for="apiKey">API Key</label>
+                                <input type="password" id="apiKey" class="form-control"
+                                    placeholder="Enter your API key">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="model">Model</label>
+                                <select id="model" class="form-control">
+                                    <option value="">Loading models...</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                  </div>
                 </div>
-              </div>
-
-      <!-- Step 4: Cost Overview -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number">4</div>
-          <h2>Cost Estimate</h2>
-        </div>
-        <div class="card-content">
-          <div class="stats-grid">
-            <div class="stat-item">
-              <div class="stat-label">Input cost per URL</div>
-              <div class="stat-value" id="inputCost">$0.00</div>
             </div>
-            <div class="stat-item">
-              <div class="stat-label">Output cost per URL</div>
-              <div class="stat-value" id="outputCost">$0.00</div>
+
+            <!-- Step 4: Cost Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="step-number">4</div>
+                    <h2>Cost Estimate</h2>
+                </div>
+                <div class="card-content">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">Input cost per URL</div>
+                            <div class="stat-value" id="inputCost">$0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Output cost per URL</div>
+                            <div class="stat-value" id="outputCost">$0.00</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Total URLs</div>
+                            <div class="stat-value" id="totalUrls">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Total estimated cost</div>
+                            <div class="stat-value" id="totalCost">$0.00</div>
+                        </div>
+                    </div>
+
+                    <div class="info-box">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12" y2="8"></line>
+                        </svg>
+                        <div>Average webpage size: ~2000 tokens. Final cost may vary based on actual content length.
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="stat-item">
-              <div class="stat-label">Total URLs</div>
-              <div class="stat-value" id="totalUrls">0</div>
+
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
             </div>
-            <div class="stat-item">
-              <div class="stat-label">Total estimated cost</div>
-              <div class="stat-value" id="totalCost">$0.00</div>
+
+            <div class="button-group">
+                <button id="startButton" class="btn btn-primary">Start Processing</button>
+                <button id="downloadButton" class="btn btn-secondary">Download CSV</button>
             </div>
-          </div>
-          
-          <div class="info-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12" y2="8"></line>
-            </svg>
-            <div>Average webpage size: ~2000 tokens. Final cost may vary based on actual content length.</div>
-          </div>
-        </div>
-      </div>
 
-      <div class="progress-bar">
-        <div class="progress-fill"></div>
-      </div>
+            <div id="results" class="results"></div>
+        </main>
+    </div>
 
-      <div class="button-group">
-        <button id="startButton" class="btn btn-primary">Start Processing</button>
-        <button id="downloadButton" class="btn btn-secondary">Download CSV</button>
-      </div>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-      <div id="results" class="results"></div>
-    </main>
-  </div>
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #333;
+            background: #f5f5f5;
+        }
 
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
 
-    body {
-      font-family: Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      color: #333;
-      background: #f5f5f5;
-    }
+        .header {
+            margin-bottom: 2rem;
+        }
 
-    .container {
-      max-width: 800px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-    }
+        .header h1 {
+            font-size: 2rem;
+            color: #1a1a1a;
+            margin-bottom: 0.5rem;
+        }
 
-    .header {
-      margin-bottom: 2rem;
-    }
+        .header p {
+            color: #666;
+        }
 
-    .header h1 {
-      font-size: 2rem;
-      color: #1a1a1a;
-      margin-bottom: 0.5rem;
-    }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
 
-    .header p {
-      color: #666;
-    }
+        .card-header {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
 
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      margin-bottom: 1.5rem;
-      overflow: hidden;
-    }
+        .step-number {
+            background: #0066cc;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
 
-    .card-header {
-      padding: 1rem;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
+        .card-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0;
+        }
 
-    .step-number {
-      background: #0066cc;
-      color: white;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.875rem;
-      font-weight: 500;
-    }
+        .card-content {
+            padding: 1rem;
+        }
 
-    .card-header h2 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin: 0;
-    }
+        .form-group {
+            margin-bottom: 1rem;
+        }
 
-    .card-content {
-      padding: 1rem;
-    }
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
 
-    .form-group {
-      margin-bottom: 1rem;
-    }
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            font-family: Helvetica, Arial, sans-serif;
+            transition: border-color 0.15s ease;
+        }
 
-    .form-group label {
-      display: block;
-      font-size: 0.875rem;
-      font-weight: 500;
-      margin-bottom: 0.5rem;
-    }
+        .form-control:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
 
-    .form-control {
-      width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 16px;
-      font-family: Helvetica, Arial, sans-serif;
-      transition: border-color 0.15s ease;
-    }
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
 
-    .form-control:focus {
-      outline: none;
-      border-color: #0066cc;
-    }
+        .help-text {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
-    textarea.form-control {
-      min-height: 120px;
-      resize: vertical;
-    }
+        .help-text svg {
+            flex-shrink: 0;
+        }
 
-    .help-text {
-      font-size: 0.875rem;
-      color: #666;
-      margin-top: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
 
-    .help-text svg {
-      flex-shrink: 0;
-    }
+        .stat-item {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 4px;
+        }
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
+        .stat-label {
+            font-size: 0.875rem;
+            color: #666;
+        }
 
-    .stat-item {
-      background: #f8fafc;
-      padding: 1rem;
-      border-radius: 4px;
-    }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
 
-    .stat-label {
-      font-size: 0.875rem;
-      color: #666;
-    }
+        .info-box {
+            background: #eff6ff;
+            border-radius: 4px;
+            padding: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
 
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #1a1a1a;
-    }
+        .info-box svg {
+            flex-shrink: 0;
+        }
 
-    .info-box {
-      background: #eff6ff;
-      border-radius: 4px;
-      padding: 1rem;
-      display: flex;
-      gap: 0.75rem;
-      align-items: flex-start;
-    }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1.5rem 0;
+        }
 
-    .info-box svg {
-      flex-shrink: 0;
-    }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
 
-    .progress-bar {
-      width: 100%;
-      height: 8px;
-      background-color: #f0f0f0;
-      border-radius: 4px;
-      overflow: hidden;
-      margin: 1.5rem 0;
-    }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
 
-    .progress-fill {
-      height: 100%;
-      background-color: #4CAF50;
-      width: 0%;
-      transition: width 0.3s ease;
-    }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            flex: 1;
+        }
 
-    .button-group {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
+        .btn-primary {
+            background: #0066cc;
+            color: white;
+        }
 
-    .btn {
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background-color 0.15s ease;
-      flex: 1;
-    }
+        .btn-primary:hover {
+            background: #0052a3;
+        }
 
-    .btn-primary {
-      background: #0066cc;
-      color: white;
-    }
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
 
-    .btn-primary:hover {
-      background: #0052a3;
-    }
+        .btn-secondary {
+            background: #28a745;
+            color: white;
+            display: none;
+        }
 
-    .btn-primary:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+        .btn-secondary:hover {
+            background: #218838;
+        }
 
-    .btn-secondary {
-      background: #28a745;
-      color: white;
-      display: none;
-    }
+        .api-key-section {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
 
-    .btn-secondary:hover {
-      background: #218838;
-    }
+        .warning {
+            color: #dc3545;
+        }
 
-    .api-key-section {
-      display: none;
-      margin-top: 1rem;
-      padding: 1rem;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
+        .results {
+            margin-top: 1.5rem;
+        }
 
-    .warning {
-      color: #dc3545;
-    }
+        .result-item {
+            background: white;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+        }
 
-    .results {
-      margin-top: 1.5rem;
-    }
+        .url {
+            color: #0066cc;
+            margin-bottom: 0.5rem;
+            word-break: break-all;
+        }
 
-    .result-item {
-      background: white;
-      border-radius: 4px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border: 1px solid #ddd;
-    }
+        .status {
+            font-size: 0.875rem;
+            color: #666;
+        }
 
-    .url {
-      color: #0066cc;
-      margin-bottom: 0.5rem;
-      word-break: break-all;
-    }
+        .status.error {
+            color: #dc3545;
+        }
 
-    .status {
-      font-size: 0.875rem;
-      color: #666;
-    }
+        .status.success {
+            color: #28a745;
+        }
+    </style>
 
-    .status.error {
-      color: #dc3545;
-    }
+    <script type="module">
+        // Import the LLM client
+        import { LLMClient } from './js/llm-client.js';
 
-    .status.success {
-      color: #28a745;
-    }
-  </style>
+        // Initialize state
+        let client = new LLMClient();
+        let isProcessing = false;
+        let results = [];
+        let modelPricing = [];
 
-  <script type="module">
-    // Import the LLM client
-    import { LLMClient } from './js/llm-client.js';
+        // Constants
+        const AVERAGE_PAGE_TOKENS = 2000;
+        const FREE_URL_LIMIT = 10;
+        const ESTIMATED_OUTPUT_TOKENS = 500;
 
-    // Initialize state
-    let client = new LLMClient();
-    let isProcessing = false;
-    let results = [];
-    let modelPricing = [];
+        // UI Elements
+        const providerSelect = document.getElementById('provider');
+        const apiKeyGroup = document.getElementById('apiKeyGroup');
+        const apiKeyInput = document.getElementById('apiKey');
+        const modelSelect = document.getElementById('model');
+        const promptInput = document.getElementById('prompt');
+        const urlsInput = document.getElementById('urls');
+        const startButton = document.getElementById('startButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const urlCount = document.getElementById('urlCount');
+        const totalUrls = document.getElementById('totalUrls');
+        const urlLimit = document.getElementById('urlLimit');
+        const promptTokens = document.getElementById('promptTokens');
+        const inputCost = document.getElementById('inputCost');
+        const outputCost = document.getElementById('outputCost');
+        const totalCost = document.getElementById('totalCost');
 
-    // Constants
-    const AVERAGE_PAGE_TOKENS = 2000;
-    const FREE_URL_LIMIT = 10;
-    const ESTIMATED_OUTPUT_TOKENS = 500;
+        // Provider change handler
+        providerSelect.addEventListener('change', async () => {
+            const isFree = providerSelect.value === 'free';
+            apiKeyGroup.style.display = isFree ? 'none' : 'block';
 
-    // UI Elements
-    const providerSelect = document.getElementById('provider');
-    const apiKeyGroup = document.getElementById('apiKeyGroup');
-    const apiKeyInput = document.getElementById('apiKey');
-    const modelSelect = document.getElementById('model');
-    const promptInput = document.getElementById('prompt');
-    const urlsInput = document.getElementById('urls');
-    const startButton = document.getElementById('startButton');
-    const downloadButton = document.getElementById('downloadButton');
-    const urlCount = document.getElementById('urlCount');
-    const totalUrls = document.getElementById('totalUrls');
-    const urlLimit = document.getElementById('urlLimit');
-    const promptTokens = document.getElementById('promptTokens');
-    const inputCost = document.getElementById('inputCost');
-    const outputCost = document.getElementById('outputCost');
-    const totalCost = document.getElementById('totalCost');
+            // Update client configuration
+            client = new LLMClient({
+                useOwnKey: !isFree,
+                provider: isFree ? 'gemini' : providerSelect.value
+            });
 
-    // Provider change handler
-    providerSelect.addEventListener('change', async () => {
-      const isFree = providerSelect.value === 'free';
-      apiKeyGroup.style.display = isFree ? 'none' : 'block';
-
-      // Update client configuration
-      client = new LLMClient({
-        useOwnKey: !isFree,
-        provider: isFree ? 'gemini' : providerSelect.value
-      });
-
-      if (!isFree) {
-        // Load and populate models for the selected provider
-        modelPricing = await client.loadPricingData();
-        modelSelect.innerHTML = modelPricing.map(model => `
+            if (!isFree) {
+                // Load and populate models for the selected provider
+                modelPricing = await client.loadPricingData();
+                modelSelect.innerHTML = modelPricing.map(model => `
           <option value="${model.name}">${model.name} (${formatPrice(model.promptCost)} in, 
           ${formatPrice(model.completionCost)} out)</option>
         `).join('');
-      }
+            }
 
-      updateCostEstimates();
-    });
+            updateCostEstimates();
+        });
 
-    // Model change handler 
-    modelSelect.addEventListener('change', () => {
-      if (client.config.useOwnKey) {
-        client.config.model = modelSelect.value;
-      }
-      updateCostEstimates();
-    });
+        // Model change handler 
+        modelSelect.addEventListener('change', () => {
+            if (client.config.useOwnKey) {
+                client.config.model = modelSelect.value;
+            }
+            updateCostEstimates();
+        });
 
-    // API key change handler
-    apiKeyInput.addEventListener('input', (e) => {
-      client.config.apiKey = e.target.value;
-    });
+        // API key change handler
+        apiKeyInput.addEventListener('input', (e) => {
+            client.config.apiKey = e.target.value;
+        });
 
-    function formatPrice(price) {
-      const pricePerMillion = price * 1000000;
-      return `${pricePerMillion.toFixed(2)}/M tokens`;
-    }
+        function formatPrice(price) {
+            const pricePerMillion = price * 1000000;
+            return `${pricePerMillion.toFixed(2)}/M tokens`;
+        }
 
-    // Helper Functions
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
+        // Helper Functions
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
 
-    function updateProgress(current, total) {
-      const percentage = (current / total) * 100;
-      document.querySelector('.progress-fill').style.width = `${percentage}%`;
-    }
+        function updateProgress(current, total) {
+            const percentage = (current / total) * 100;
+            document.querySelector('.progress-fill').style.width = `${percentage}%`;
+        }
 
-    function estimateTokens(text) {
-      // Rough estimate: 4 characters per token
-      return Math.ceil(text.length / 4);
-    }
+        function estimateTokens(text) {
+            // Rough estimate: 4 characters per token
+            return Math.ceil(text.length / 4);
+        }
 
-    function updateCostEstimates() {
-      const promptTokenCount = estimateTokens(promptInput.value);
-      promptTokens.textContent = promptTokenCount;
+        function updateCostEstimates() {
+            const promptTokenCount = estimateTokens(promptInput.value);
+            promptTokens.textContent = promptTokenCount;
 
-      const urls = urlsInput.value.trim().split('\n').filter(url => url);
-      urlCount.textContent = urls.length;
-      totalUrls.textContent = urls.length;
+            const urls = urlsInput.value.trim().split('\n').filter(url => url);
+            urlCount.textContent = urls.length;
+            totalUrls.textContent = urls.length;
 
-      const isFree = providerSelect.value === 'free';
-      if (isFree) {
-        urlLimit.textContent = urls.length > FREE_URL_LIMIT ? 
-          ` (Maximum ${FREE_URL_LIMIT} URLs for free tier)` : '';
-        
-        inputCost.textContent = '$0.00';
-        outputCost.textContent = '$0.00';
-        totalCost.textContent = '$0.00';
-        return;
-      }
+            const isFree = providerSelect.value === 'free';
+            if (isFree) {
+                urlLimit.textContent = urls.length > FREE_URL_LIMIT ?
+                    ` (Maximum ${FREE_URL_LIMIT} URLs for free. Select a paid provider in step 3 to analyze more.)` : '';
 
-      // Clear URL limit text for paid tiers
-      urlLimit.textContent = '';
+                inputCost.textContent = '$0.00';
+                outputCost.textContent = '$0.00';
+                totalCost.textContent = '$0.00';
+                return;
+            }
 
-      const selectedModel = modelPricing.find(m => m.name === modelSelect.value);
-      if (!selectedModel) return;
+            // Clear URL limit text for paid tiers
+            urlLimit.textContent = '';
 
-      const inputTokensPerUrl = promptTokenCount + AVERAGE_PAGE_TOKENS;
-      
-      const inputCostPerUrl = (inputTokensPerUrl * selectedModel.promptCost).toFixed(4);
-      const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost).toFixed(4);
-      
-      inputCost.textContent = `${inputCostPerUrl}`;
-      outputCost.textContent = `${outputCostPerUrl}`;
+            const selectedModel = modelPricing.find(m => m.name === modelSelect.value);
+            if (!selectedModel) return;
 
-      const totalCostValue = urls.length * 
-        (inputTokensPerUrl * selectedModel.promptCost + 
-         ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost);
-      
-      totalCost.textContent = `${totalCostValue.toFixed(4)}`;
-    }
+            const inputTokensPerUrl = promptTokenCount + AVERAGE_PAGE_TOKENS;
 
-    async function processUrl(url) {
-      const response = await fetch('https://r.jina.ai/' + url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.statusText}`);
-      }
-      return response.text();
-    }
+            const inputCostPerUrl = (inputTokensPerUrl * selectedModel.promptCost).toFixed(4);
+            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost).toFixed(4);
 
-    function preprocessContent(content) {
-      let processed = content;
-      processed = processed.replace(/<[^>]+>/g, '');
-      processed = processed.replace(/\n{3,}/g, '\n\n');
-      
-      const boilerplate = [
-        /This website uses cookies/i,
-        /Accept cookies/i,
-        /Privacy Policy/i,
-        /Terms of Service/i,
-        /©\s*\d{4}/,
-        /All rights reserved/i
-      ];
-      
-      boilerplate.forEach(pattern => {
-        processed = processed.replace(pattern, '');
-      });
-      
-      return processed.trim();
-    }
+            inputCost.textContent = `${inputCostPerUrl}`;
+            outputCost.textContent = `${outputCostPerUrl}`;
 
-    async function startProcessing() {
-      const prompt = promptInput.value.trim();
-      const urlList = urlsInput.value.trim().split('\n').filter(url => url);
-      const isFree = providerSelect.value === 'free';
+            const totalCostValue = urls.length *
+                (inputTokensPerUrl * selectedModel.promptCost +
+                    ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost);
 
-      if (!prompt || urlList.length === 0) {
-        alert('Please fill in all required fields');
-        return;
-      }
+            totalCost.textContent = `${totalCostValue.toFixed(4)}`;
+        }
 
-      if (isFree && urlList.length > FREE_URL_LIMIT) {
-        alert(`Free tier is limited to ${FREE_URL_LIMIT} URLs`);
-        return;
-      }
+        async function processUrl(url) {
+            const response = await fetch('https://r.jina.ai/' + url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch: ${response.statusText}`);
+            }
+            return response.text();
+        }
 
-      if (!isFree && !apiKeyInput.value) {
-        alert('Please enter an API key');
-        return;
-      }
+        function preprocessContent(content) {
+            let processed = content;
+            processed = processed.replace(/<[^>]+>/g, '');
+            processed = processed.replace(/\n{3,}/g, '\n\n');
 
-      if (isProcessing) return;
-      
-      try {
-        await client.initialize();
-      } catch (error) {
-        alert(`Failed to initialize client: ${error.message}`);
-        return;
-      }
-      
-      isProcessing = true;
-      results = [];
-      startButton.disabled = true;
-      downloadButton.style.display = 'none';
-      document.getElementById('results').innerHTML = '';
+            const boilerplate = [
+                /This website uses cookies/i,
+                /Accept cookies/i,
+                /Privacy Policy/i,
+                /Terms of Service/i,
+                /©\s*\d{4}/,
+                /All rights reserved/i
+            ];
 
-      let processed = 0;
-      updateProgress(0, urlList.length);
+            boilerplate.forEach(pattern => {
+                processed = processed.replace(pattern, '');
+            });
 
-      for (const url of urlList) {
-        const resultDiv = document.createElement('div');
-        resultDiv.className = 'result-item';
-        resultDiv.innerHTML = `
+            return processed.trim();
+        }
+
+        async function startProcessing() {
+            const prompt = promptInput.value.trim();
+            const urlList = urlsInput.value.trim().split('\n').filter(url => url);
+            const isFree = providerSelect.value === 'free';
+
+            if (!prompt || urlList.length === 0) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            if (isFree && urlList.length > FREE_URL_LIMIT) {
+                alert(`Free tier is limited to ${FREE_URL_LIMIT} URLs`);
+                return;
+            }
+
+            if (!isFree && !apiKeyInput.value) {
+                alert('Please enter an API key');
+                return;
+            }
+
+            if (isProcessing) return;
+
+            try {
+                await client.initialize();
+            } catch (error) {
+                alert(`Failed to initialize client: ${error.message}`);
+                return;
+            }
+
+            isProcessing = true;
+            results = [];
+            startButton.disabled = true;
+            downloadButton.style.display = 'none';
+            document.getElementById('results').innerHTML = '';
+
+            let processed = 0;
+            updateProgress(0, urlList.length);
+
+            for (const url of urlList) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result-item';
+                resultDiv.innerHTML = `
           <div class="url">${url}</div>
           <div class="status">Processing...</div>
         `;
-        document.getElementById('results').insertBefore(resultDiv, document.getElementById('results').firstChild);
+                document.getElementById('results').insertBefore(resultDiv, document.getElementById('results').firstChild);
 
-        try {
-          const content = await processUrl(url);
-          resultDiv.querySelector('.status').textContent = 'Got content, analyzing...';
-          
-          const cleanContent = preprocessContent(content);
-          const analysis = await client.sendMessage(
-            `Content from webpage:\n\n${cleanContent}\n\nPrompt:\n${prompt}`
-          );
-          
-          results.push({
-            url,
-            content: cleanContent,
-            analysis
-          });
+                try {
+                    const content = await processUrl(url);
+                    resultDiv.querySelector('.status').textContent = 'Got content, analyzing...';
 
-          resultDiv.querySelector('.status').className = 'status success';
-          resultDiv.querySelector('.status').textContent = 'Completed';
-        } catch (error) {
-          console.error(`Error processing ${url}:`, error);
-          results.push({
-            url,
-            content: '',
-            analysis: `Error: ${error.message}`
-          });
-          resultDiv.querySelector('.status').className = 'status error';
-          resultDiv.querySelector('.status').textContent = `Error: ${error.message}`;
+                    const cleanContent = preprocessContent(content);
+                    const analysis = await client.sendMessage(
+                        `Content from webpage:\n\n${cleanContent}\n\nPrompt:\n${prompt}`
+                    );
+
+                    results.push({
+                        url,
+                        analysis,
+                        content: cleanContent
+                    });
+
+                    resultDiv.querySelector('.status').className = 'status success';
+                    // Start of Selection
+                    resultDiv.querySelector('.status').textContent = analysis;
+                } catch (error) {
+                    console.error(`Error processing ${url}:`, error);
+                    results.push({
+                        url,
+                        content: '',
+                        analysis: `Error: ${error.message}`
+                    });
+                    resultDiv.querySelector('.status').className = 'status error';
+                    resultDiv.querySelector('.status').textContent = `Error: ${error.message}`;
+                }
+
+                processed++;
+                updateProgress(processed, urlList.length);
+
+                if (processed < urlList.length) {
+                    await sleep(1000); // 1 second delay between requests
+                }
+            }
+
+            downloadButton.style.display = 'inline-block';
+            startButton.disabled = false;
+            isProcessing = false;
         }
 
-        processed++;
-        updateProgress(processed, urlList.length);
+        function downloadResults() {
+            const csv = Papa.unparse(results.map(r => ({
+                URL: r.url,
+                Content: r.content,
+                Analysis: r.analysis
+            })));
 
-        if (processed < urlList.length) {
-          await sleep(1000); // 1 second delay between requests
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'url_analysis.csv';
+            link.click();
         }
-      }
 
-      downloadButton.style.display = 'inline-block';
-      startButton.disabled = false;
-      isProcessing = false;
-    }
+        // Event Listeners
+        promptInput.addEventListener('input', updateCostEstimates);
+        urlsInput.addEventListener('input', updateCostEstimates);
+        startButton.addEventListener('click', startProcessing);
+        downloadButton.addEventListener('click', downloadResults);
 
-    function downloadResults() {
-      const csv = Papa.unparse(results.map(r => ({
-        URL: r.url,
-        Content: r.content,
-        Analysis: r.analysis
-      })));
+        // Initialize cost estimates
+        updateCostEstimates();
 
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'url_analysis.csv';
-      link.click();
-    }
-
-    // Event Listeners
-    promptInput.addEventListener('input', updateCostEstimates);
-    urlsInput.addEventListener('input', updateCostEstimates);
-    startButton.addEventListener('click', startProcessing);
-    downloadButton.addEventListener('click', downloadResults);
-
-    // Initialize cost estimates
-    updateCostEstimates();
-
-</script>
+    </script>
 </body>
+
 </html>
