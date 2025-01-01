@@ -1,6 +1,9 @@
 <link rel="stylesheet" href="style.css">
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
+
+
+[Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Convert a MkDocs site to Markdown
  
 [LLM Widget](https://lab.simonwisdom.com/llm-widget) - A static widget to message multiple LLM providers 
 

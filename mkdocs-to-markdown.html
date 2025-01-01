@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MkDocs Sitemap Crawler</title>
+  <script src="js/common.js"></script>
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  input, textarea {
+    font-size: 16px;
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  textarea {
+    height: 400px;
+    font-family: monospace;
+  }
+
+  button {
+    font-size: 16px;
+    padding: 8px 16px;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    background: #ccc;
+  }
+
+  .status {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 4px;
+  }
+
+  .error {
+    background: #fee;
+    color: #c00;
+  }
+
+  .success {
+    background: #efe;
+    color: #080;
+  }
+
+  .progress {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .progress-bar {
+    height: 20px;
+    background: #eee;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #0066cc;
+    transition: width 0.3s ease;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 14px;
+    color: #666;
+  }
+  </style>
+</head>
+<body>
+  <h1>MkDocs to Markdown</h1>
+  <p>Convert a MkDocs site to Markdown.</p>
+  
+  <div>
+    <input type="text" id="url" placeholder="Enter site domain (e.g., https://www.mkdocs.org/)" value="https://www.mkdocs.org/">
+    <button id="fetch">Crawl All Pages</button>
+  </div>
+
+  <div class="progress" style="display: none">
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 0%"></div>
+    </div>
+    <div class="stats">
+      <span>Pages processed: <span id="processed">0</span></span>
+      <span>Total pages: <span id="total">0</span></span>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  
+  <textarea id="output" readonly></textarea>
+  
+  <div>
+    <button id="download" disabled>Download Markdown</button>
+    <button id="copy" disabled>Copy to Clipboard</button>
+  </div>
+
+  <script type="module">
+// Global state
+let baseUrl = ''
+let sitePathPrefix = '' // Store the path prefix (e.g., '/mkdocs')
+
+// Show status message
+function showStatus(message, isError = false) {
+  const status = document.getElementById('status')
+  status.textContent = message
+  status.className = 'status ' + (isError ? 'error' : 'success')
+}
+
+// Enable/disable buttons
+function setButtonsEnabled(enabled) {
+  document.getElementById('fetch').disabled = !enabled
+  document.getElementById('download').disabled = !enabled
+  document.getElementById('copy').disabled = !enabled
+}
+
+// Update progress display
+function updateProgress(processed, total) {
+  document.querySelector('.progress').style.display = 'block'
+  document.getElementById('processed').textContent = processed
+  document.getElementById('total').textContent = total
+  
+  const progress = (processed / total) * 100
+  document.querySelector('.progress-fill').style.width = `${progress}%`
+}
+
+// Fetch and parse sitemap
+async function fetchSitemap(siteUrl) {
+  const sitemapUrl = `${siteUrl.replace(/\/?$/, '/')}/sitemap.xml`
+  console.log('Fetching sitemap from:', sitemapUrl)
+  
+  const response = await fetch(sitemapUrl)
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sitemap: ${response.status}`)
+  }
+  
+  const text = await response.text()
+  console.log('Raw sitemap XML:', text)
+  
+  const parser = new DOMParser()
+  const xml = parser.parseFromString(text, 'text/xml')
+  
+  // Check for parse errors
+  const parseError = xml.querySelector('parsererror')
+  if (parseError) {
+    throw new Error('Failed to parse sitemap XML: ' + parseError.textContent)
+  }
+  
+  console.log('XML Document:', xml.documentElement.outerHTML)
+  
+  // Handle both namespaced and non-namespaced XML
+  function getElements(tagName) {
+    // Try with namespace
+    let elements = xml.getElementsByTagNameNS('http://www.sitemaps.org/schemas/sitemap/0.9', tagName)
+    console.log(`Found ${elements.length} elements with namespace for tag ${tagName}`)
+    
+    // Fallback to no namespace if needed
+    if (elements.length === 0) {
+      elements = xml.getElementsByTagName(tagName)
+      console.log(`Found ${elements.length} elements without namespace for tag ${tagName}`)
+    }
+    return elements
+  }
+  
+  // Get all URL elements
+  const urlElements = getElements('url')
+  console.log('URL elements:', Array.from(urlElements).map(el => el.outerHTML))
+  
+  // Extract locations
+  const urls = Array.from(urlElements)
+    .map(url => {
+      const locNS = url.getElementsByTagNameNS('http://www.sitemaps.org/schemas/sitemap/0.9', 'loc')[0]
+      const loc = locNS || url.querySelector('loc')
+      const result = loc ? loc.textContent.trim() : null
+      console.log('Processing URL element:', {
+        urlHTML: url.outerHTML,
+        locElement: loc ? loc.outerHTML : 'not found',
+        extractedURL: result
+      })
+      return result
+    })
+    .filter(url => {
+      if (!url) return false
+      try {
+        const urlObj = new URL(url)
+        const keep = urlObj.hostname.endsWith(baseUrl)
+        console.log('Filtering URL:', url, keep ? '(keeping)' : '(filtering out)')
+        return keep
+      } catch (e) {
+        console.warn('Invalid URL:', url)
+        return false
+      }
+    })
+  
+  console.log('Final filtered URLs:', urls)
+  
+  if (urls.length === 0) {
+    console.warn('No URLs found in sitemap')
+  }
+  
+  return urls
+}
+
+// Fetch and process content
+async function fetchContent(url) {
+  // Rewrite URL if needed
+  let fetchUrl = url
+  try {
+    const urlObj = new URL(url)
+    if (urlObj.hostname.startsWith('docs.')) {
+      // Replace docs.domain.com/path with domain.com/mkdocs/path
+      const path = urlObj.pathname
+      fetchUrl = `https://${baseUrl}/${sitePathPrefix}${path}`
+    }
+  } catch (e) {
+    console.warn('Invalid URL for rewriting:', url)
+  }
+  
+  console.log('Original URL:', url)
+  console.log('Fetching from:', fetchUrl)
+  const response = await fetch(fetchUrl)
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  
+  const html = await response.text()
+  return html
+}
+
+// Convert HTML to Markdown
+function htmlToMarkdown(html, url) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  
+  // Find main content - try multiple possible MkDocs selectors
+  const contentSelectors = [
+    '.md-content__inner',          // Standard MkDocs
+    'main',                        // Generic main content
+    '.content',                    // Generic content
+    'article',                     // Generic article
+    '.col-md-9',                  // MkDocs older versions
+    '[role="main"]',              // MkDocs role attribute
+    '.md-main__inner',            // MkDocs material theme
+    '.md-content',                // MkDocs content wrapper
+    '#main-content'               // MkDocs common ID
+  ]
+  
+  let mainContent = null
+  for (const selector of contentSelectors) {
+    mainContent = doc.querySelector(selector)
+    if (mainContent) {
+      console.log('Found content using selector:', selector)
+      break
+    }
+  }
+
+  if (!mainContent) {
+    console.warn('No main content found with standard selectors, falling back to body')
+    mainContent = doc.body
+  }
+
+  let markdown = `# ${url}\n\n`
+
+  // Process content recursively
+  function processNode(node) {
+    if (node.nodeType === 3) { // Text node
+      return node.textContent.trim()
+    }
+    
+    if (node.nodeType !== 1) { // Not an element
+      return ''
+    }
+
+    const tag = node.tagName.toLowerCase()
+    let content = ''
+
+    switch (tag) {
+      case 'h1':
+      case 'h2':
+      case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6':
+        const level = tag.charAt(1)
+        content = `${'#'.repeat(level)} ${node.textContent.trim()}\n\n`
+        break
+
+      case 'p':
+        content = `${node.textContent.trim()}\n\n`
+        break
+
+      case 'pre':
+        const code = node.querySelector('code')
+        const language = code?.className.replace('language-', '') || ''
+        content = `\`\`\`${language}\n${node.textContent.trim()}\n\`\`\`\n\n`
+        break
+
+      case 'ul':
+      case 'ol':
+        node.querySelectorAll('li').forEach(li => {
+          content += `* ${li.textContent.trim()}\n`
+        })
+        content += '\n'
+        break
+
+      case 'blockquote':
+        content = `> ${node.textContent.trim()}\n\n`
+        break
+
+      case 'table':
+        // Basic table support
+        const rows = node.querySelectorAll('tr')
+        rows.forEach((row, i) => {
+          const cells = Array.from(row.querySelectorAll('td, th'))
+            .map(cell => cell.textContent.trim())
+            .join(' | ')
+          content += `| ${cells} |\n`
+          
+          // Add separator after header
+          if (i === 0) {
+            content += `|${cells.split('|').map(() => ' --- |').join('')}\n`
+          }
+        })
+        content += '\n'
+        break
+
+      default:
+        // Recursively process child nodes
+        Array.from(node.childNodes).forEach(child => {
+          content += processNode(child)
+        })
+    }
+
+    return content
+  }
+
+  markdown += processNode(mainContent)
+  markdown += '\n---\n\n' // Page separator
+  return markdown.trim()
+}
+
+// Download markdown file
+function downloadMarkdown(content, filename = 'content.md') {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// Initialize event listeners
+document.getElementById('fetch').addEventListener('click', async () => {
+  const urlInput = document.getElementById('url')
+  const outputArea = document.getElementById('output')
+  
+  // Extract domain and path prefix for filtering
+  const urlObj = new URL(urlInput.value.trim())
+  const mainDomain = urlObj.hostname.split('.').slice(-2).join('.') 
+  baseUrl = mainDomain
+  sitePathPrefix = urlObj.pathname.split('/')[1] // Get the first path segment (e.g., 'mkdocs')
+  
+  // Reset state
+  outputArea.value = ''
+  setButtonsEnabled(false)
+  
+  try {
+    showStatus('Fetching sitemap...')
+    const urls = await fetchSitemap(urlInput.value)
+    
+    showStatus(`Found ${urls.length} pages. Starting crawl...`)
+    let combinedMarkdown = ''
+    let processed = 0
+    
+    for (const url of urls) {
+      try {
+        const html = await fetchContent(url)
+        const markdown = htmlToMarkdown(html, url)
+        combinedMarkdown += markdown + '\n\n'
+        
+        processed++
+        updateProgress(processed, urls.length)
+        outputArea.value = combinedMarkdown
+      } catch (error) {
+        console.warn(`Error processing ${url}:`, error)
+        combinedMarkdown += `# Error: ${url}\n\n${error.message}\n\n---\n\n`
+      }
+    }
+    
+    showStatus(`Crawl complete! Processed ${processed} pages.`)
+    setButtonsEnabled(true)
+  } catch (error) {
+    console.error('Crawler error:', error)
+    showStatus(error.message, true)
+    setButtonsEnabled(true)
+  }
+})
+
+document.getElementById('download').addEventListener('click', () => {
+  const content = document.getElementById('output').value
+  if (content) {
+    const urlInput = document.getElementById('url')
+    const siteName = new URL(urlInput.value).hostname
+    downloadMarkdown(content, `${siteName}-docs.md`)
+  }
+})
+
+document.getElementById('copy').addEventListener('click', async () => {
+  const content = document.getElementById('output').value
+  if (content) {
+    await navigator.clipboard.writeText(content)
+    showStatus('Content copied to clipboard!')
+  }
+})
+  </script>
+</body>
+</html>
