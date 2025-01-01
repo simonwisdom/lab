@@ -634,8 +634,8 @@
 
                     results.push({
                         url,
-                        analysis,
-                        content: cleanContent
+                        content: cleanContent,
+                        analysis
                     });
 
                     resultDiv.querySelector('.status').className = 'status success';
@@ -668,8 +668,8 @@
         function downloadResults() {
             const csv = Papa.unparse(results.map(r => ({
                 URL: r.url,
-                Content: r.content,
-                Analysis: r.analysis
+                Analysis: r.analysis,
+                RawPageContent: r.content
             })));
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
