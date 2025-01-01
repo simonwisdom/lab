@@ -561,23 +561,38 @@
             return processed.trim();
         }
 
+        function showNotification(message, type = 'error') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = message;
+            
+            const container = document.getElementById('notification-container');
+            container.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
         async function startProcessing() {
             const prompt = promptInput.value.trim();
             const urlList = urlsInput.value.trim().split('\n').filter(url => url);
             const isFree = providerSelect.value === 'free';
 
             if (!prompt || urlList.length === 0) {
-                alert('Please fill in all required fields');
+                showNotification('Please fill in all required fields');
                 return;
             }
 
             if (isFree && urlList.length > FREE_URL_LIMIT) {
-                alert(`Free tier is limited to ${FREE_URL_LIMIT} URLs`);
+                showNotification(`Free tier is limited to ${FREE_URL_LIMIT} URLs`, 'warning');
                 return;
             }
 
             if (!isFree && !apiKeyInput.value) {
-                alert('Please enter an API key');
+                showNotification('Please enter an API key');
                 return;
             }
 
@@ -586,7 +601,7 @@
             try {
                 await client.initialize();
             } catch (error) {
-                alert(`Failed to initialize client: ${error.message}`);
+                showNotification(`Failed to initialize client: ${error.message}`);
                 return;
             }
 
