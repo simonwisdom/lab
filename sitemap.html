@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="js/common.js"></script>
-  <title>Sitemap Finder</title>
+  <title>Extract URLs</title>
   <style>
     .input-group {
       margin-bottom: 20px;
@@ -109,11 +109,11 @@
 
 <body>
   <div class="container">
-    <h1>Sitemap Finder</h1>
-    <p>Find sitemaps for a website and extract the URLs.</p>
+    <h1>Extract URLs</h1> 
+    <p>Extract URLs from a website for analysis with the <a href="https://lab.simonwisdom.com/url-parse">LLM Web Parser</a>.</p>
     <div class="input-group">
       <input type="url" id="urlInput" placeholder="Enter website URL (e.g., https://example.com)" required>
-      <button id="searchButton">Search for Sitemaps</button>
+      <button id="searchButton">Extract URLs</button>
     </div>
     <div id="status" class="status"></div>
 
@@ -128,7 +128,7 @@
       <div id="sitemapsList" class="sitemaps-list"></div>
     </div>
 
-    <h2>URLs in Selected Sitemap</h2>
+    <h2>Extracted URLs</h2>
     <textarea id="urlResults" readonly></textarea>
     <div id="urlStats" class="stats"></div>
   </div>
