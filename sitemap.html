@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sitemap Finder</title>
   <script src="js/common.js"></script>
+  <title>Sitemap Finder</title>
   <style>
     .input-group {
       margin-bottom: 20px;
@@ -73,6 +73,24 @@
     .fallback-section.visible {
       display: block;
     }
+
+    .error {
+      color: #dc3545;
+    }
+
+    .status {
+      margin: 10px 0;
+    }
+
+    .success {
+      color: #28a745;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
   </style>
 </head>
 <body>
@@ -130,9 +148,27 @@
         this.fallbackSection = document.getElementById('fallbackSection')
         this.extractHtmlButton = document.getElementById('extractHtmlButton')
         this.foundSitemaps = new Map() // URL -> parsed URLs
+        this.proxyBaseUrl = 'https://lab-proxy.vercel.app/api/proxy'
         
         this.searchButton.addEventListener('click', () => this.startSearch())
         this.extractHtmlButton.addEventListener('click', () => this.extractHtmlUrls())
+      }
+
+      async proxyFetch(url) {
+        const proxyUrl = `${this.proxyBaseUrl}?url=${encodeURIComponent(url)}`
+        try {
+          const response = await fetch(proxyUrl)
+          if (response.status === 403) {
+            throw new Error('Access denied by the target website')
+          }
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${url}`)
+          }
+          return response
+        } catch (error) {
+          console.warn(`Proxy fetch error for ${url}:`, error)
+          throw error
+        }
       }
 
       async startSearch() {
@@ -177,9 +213,7 @@
           this.extractHtmlButton.disabled = true
           this.status.textContent = 'Extracting URLs from HTML...'
           
-          const response = await fetch(baseUrl)
-          if (!response.ok) throw new Error('Failed to fetch the page')
-          
+          const response = await this.proxyFetch(baseUrl)
           const text = await response.text()
           const parser = new DOMParser()
           const doc = parser.parseFromString(text, 'text/html')
@@ -244,15 +278,13 @@
 
       async checkRobotsTxt(baseUrl) {
         try {
-          const response = await fetch(`${baseUrl}/robots.txt`)
-          if (response.ok) {
-            const text = await response.text()
-            const sitemapUrls = text.match(/Sitemap: (.*?)$/gm)
-            if (sitemapUrls) {
-              for (const line of sitemapUrls) {
-                const url = line.replace('Sitemap:', '').trim()
-                await this.addSitemap(url)
-              }
+          const response = await this.proxyFetch(`${baseUrl}/robots.txt`)
+          const text = await response.text()
+          const sitemapUrls = text.match(/Sitemap: (.*?)$/gm)
+          if (sitemapUrls) {
+            for (const line of sitemapUrls) {
+              const url = line.replace('Sitemap:', '').trim()
+              await this.addSitemap(url)
             }
           }
         } catch (error) {
@@ -264,7 +296,7 @@
         for (const path of commonPaths) {
           try {
             const url = `${baseUrl}${path}`
-            const response = await fetch(url)
+            const response = await this.proxyFetch(url)
             if (response.ok) {
               await this.addSitemap(url)
             }
@@ -276,22 +308,20 @@
 
       async checkMainPageLinks(baseUrl) {
         try {
-          const response = await fetch(baseUrl)
-          if (response.ok) {
-            const text = await response.text()
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(text, 'text/html')
-            
-            const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
-            for (const link of links) {
-              const href = link.href || link.getAttribute('href')
-              if (href) {
-                try {
-                  const url = new URL(href, baseUrl)
-                  await this.addSitemap(url.href)
-                } catch (error) {
-                  console.warn('Invalid URL:', href)
-                }
+          const response = await this.proxyFetch(baseUrl)
+          const text = await response.text()
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(text, 'text/html')
+          
+          const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
+          for (const link of links) {
+            const href = link.href || link.getAttribute('href')
+            if (href) {
+              try {
+                const url = new URL(href, baseUrl)
+                await this.addSitemap(url.href)
+              } catch (error) {
+                console.warn('Invalid URL:', href)
               }
             }
           }
@@ -312,9 +342,7 @@
 
       async parseSitemap(url) {
         try {
-          const response = await fetch(url)
-          if (!response.ok) return []
-
+          const response = await this.proxyFetch(url)
           const text = await response.text()
           const parser = new DOMParser()
           const doc = parser.parseFromString(text, 'text/xml')
