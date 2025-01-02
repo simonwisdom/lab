@@ -28,7 +28,8 @@
                 <div class="card-header">
                     <div class="step-number">1</div>
                     <h2>Enter URLs to Analyze</h2>
-                    <div class="help-text">Use <a href="https://lab.simonwisdom.com/extract-urls">Extract URLs</a> tool to
+                    <div class="help-text">Use <a href="https://lab.simonwisdom.com/extract-urls">Extract URLs</a> tool
+                        to
                         get all URLs on a website. Then paste them here.</div>
                 </div>
                 <div class="card-content">
@@ -104,7 +105,7 @@
             </div>
 
             <!-- Step 4: Cost Overview -->
-            <div class="card">
+            <div class="card" id="costOverview" style="display: none;">
                 <div class="card-header">
                     <div class="step-number">4</div>
                     <h2>Cost Estimate</h2>
@@ -333,9 +334,14 @@
         const totalCost = document.getElementById('totalCost');
 
         // Provider change handler
+
         providerSelect.addEventListener('change', async () => {
             const isFree = providerSelect.value === 'free';
             apiKeyGroup.style.display = isFree ? 'none' : 'block';
+
+            // Hide/show cost overview card
+            const costOverviewCard = document.getElementById('costOverview');
+            costOverviewCard.style.display = isFree ? 'none' : 'block';
 
             // Update client configuration
             client = new LLMClient({
