@@ -6,60 +6,73 @@
   <title>Sitemap Finder</title>
   <script src="js/common.js"></script>
   <style>
-   .input-group {
-  margin-bottom: 20px;
-}
+    .input-group {
+      margin-bottom: 20px;
+    }
 
-.sitemaps-list {
-  background: #f8f9fa;
-  padding: 15px;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  max-height: 200px;
-  overflow-y: auto;
-  margin-bottom: 20px;
-}
+    .sitemaps-list {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
 
-.sitemap-item {
-  padding: 8px;
-  margin-bottom: 8px;
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
+    .sitemap-item {
+      padding: 8px;
+      margin-bottom: 8px;
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
 
-.sitemap-item:hover {
-  background: #f0f0f0;
-}
+    .sitemap-item:hover {
+      background: #f0f0f0;
+    }
 
-.sitemap-item.active {
-  background: #e3f2fd;
-  border-color: #90caf9;
-}
+    .sitemap-item.active {
+      background: #e3f2fd;
+      border-color: #90caf9;
+    }
 
-#urlResults {
-  width: 100%;
-  height: 500px;
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: monospace;
-  resize: vertical;
-}
+    #urlResults {
+      width: 100%;
+      height: 500px;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      resize: vertical;
+    }
 
-.stats {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #666;
-}
+    .stats {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
 
-.loading {
-  display: inline-block;
-  margin-left: 10px;
-}
+    .loading {
+      display: inline-block;
+      margin-left: 10px;
+    }
+
+    .fallback-section {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .fallback-section.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -72,6 +85,12 @@
     </div>
     <div id="status" class="status"></div>
     
+    <div id="fallbackSection" class="fallback-section">
+      <h2>No Sitemaps Found</h2>
+      <p>Would you like to extract all URLs from the page's HTML instead?</p>
+      <button id="extractHtmlButton" class="btn-secondary">Extract URLs from HTML</button>
+    </div>
+
     <div class="results-container">
       <h2>Found Sitemaps</h2>
       <div id="sitemapsList" class="sitemaps-list"></div>
@@ -82,217 +101,268 @@
   </div>
 
   <script type="module">
-const commonPaths = [
-  '/sitemap.xml',
-  '/sitemap_index.xml',
-  '/sitemaps/sitemap.xml',
-  '/sitemap/sitemap.xml',
-  '/sitemap.php',
-  '/sitemap.html',
-  '/sitemap.txt',
-  '/wp-sitemap.xml',
-  '/feed/',
-  '/sitemap_products.xml',
-  '/component/osmap/xml',
-  '/site-map.html',
-  '/site-map/',
-  '/pages/',
-  '/archive/'
-]
+    const commonPaths = [
+      '/sitemap.xml',
+      '/sitemap_index.xml',
+      '/sitemaps/sitemap.xml',
+      '/sitemap/sitemap.xml',
+      '/sitemap.php',
+      '/sitemap.html',
+      '/sitemap.txt',
+      '/wp-sitemap.xml',
+      '/feed/',
+      '/sitemap_products.xml',
+      '/component/osmap/xml',
+      '/site-map.html',
+      '/site-map/',
+      '/pages/',
+      '/archive/'
+    ]
 
-class SitemapFinder {
-  constructor() {
-    this.urlInput = document.getElementById('urlInput')
-    this.searchButton = document.getElementById('searchButton')
-    this.urlResults = document.getElementById('urlResults')
-    this.sitemapsList = document.getElementById('sitemapsList')
-    this.status = document.getElementById('status')
-    this.urlStats = document.getElementById('urlStats')
-    this.foundSitemaps = new Map() // URL -> parsed URLs
-    
-    this.searchButton.addEventListener('click', () => this.startSearch())
-  }
-
-  async startSearch() {
-    try {
-      this.resetSearch()
-      const baseUrl = this.normalizeUrl(this.urlInput.value)
-      
-      if (!this.isValidUrl(baseUrl)) {
-        throw new Error('Please enter a valid URL')
-      }
-
-      this.searchButton.disabled = true
-      this.status.textContent = 'Searching for sitemaps...'
-      
-      // First check robots.txt
-      await this.checkRobotsTxt(baseUrl)
-      
-      // Then check all common paths
-      await this.checkCommonPaths(baseUrl)
-      
-      // Finally check the main page for HTML sitemap links
-      await this.checkMainPageLinks(baseUrl)
-      
-      if (this.foundSitemaps.size === 0) {
-        this.status.textContent = 'No sitemaps found.'
-      } else {
-        this.status.textContent = `Found ${this.foundSitemaps.size} sitemap(s). Click on a sitemap to view its URLs.`
-      }
-    } catch (error) {
-      this.status.textContent = `Error: ${error.message}`
-      this.status.className = 'error'
-    } finally {
-      this.searchButton.disabled = false
-    }
-  }
-
-  resetSearch() {
-    this.urlResults.value = ''
-    this.sitemapsList.innerHTML = ''
-    this.status.textContent = ''
-    this.status.className = 'status'
-    this.urlStats.textContent = ''
-    this.foundSitemaps.clear()
-  }
-
-  normalizeUrl(url) {
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url
-    }
-    return url.replace(/\/$/, '')
-  }
-
-  isValidUrl(url) {
-    try {
-      new URL(url)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  async checkRobotsTxt(baseUrl) {
-    try {
-      const response = await fetch(`${baseUrl}/robots.txt`)
-      if (response.ok) {
-        const text = await response.text()
-        const sitemapUrls = text.match(/Sitemap: (.*?)$/gm)
-        if (sitemapUrls) {
-          for (const line of sitemapUrls) {
-            const url = line.replace('Sitemap:', '').trim()
-            await this.addSitemap(url)
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Error checking robots.txt:', error)
-    }
-  }
-
-  async checkCommonPaths(baseUrl) {
-    for (const path of commonPaths) {
-      try {
-        const url = `${baseUrl}${path}`
-        const response = await fetch(url)
-        if (response.ok) {
-          await this.addSitemap(url)
-        }
-      } catch (error) {
-        console.warn(`Error checking ${path}:`, error)
-      }
-    }
-  }
-
-  async checkMainPageLinks(baseUrl) {
-    try {
-      const response = await fetch(baseUrl)
-      if (response.ok) {
-        const text = await response.text()
-        const parser = new DOMParser()
-        const doc = parser.parseFromString(text, 'text/html')
+    class SitemapFinder {
+      constructor() {
+        this.urlInput = document.getElementById('urlInput')
+        this.searchButton = document.getElementById('searchButton')
+        this.urlResults = document.getElementById('urlResults')
+        this.sitemapsList = document.getElementById('sitemapsList')
+        this.status = document.getElementById('status')
+        this.urlStats = document.getElementById('urlStats')
+        this.fallbackSection = document.getElementById('fallbackSection')
+        this.extractHtmlButton = document.getElementById('extractHtmlButton')
+        this.foundSitemaps = new Map() // URL -> parsed URLs
         
-        const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
-        for (const link of links) {
-          const href = link.href || link.getAttribute('href')
-          if (href) {
+        this.searchButton.addEventListener('click', () => this.startSearch())
+        this.extractHtmlButton.addEventListener('click', () => this.extractHtmlUrls())
+      }
+
+      async startSearch() {
+        try {
+          this.resetSearch()
+          const baseUrl = this.normalizeUrl(this.urlInput.value)
+          
+          if (!this.isValidUrl(baseUrl)) {
+            throw new Error('Please enter a valid URL')
+          }
+
+          this.searchButton.disabled = true
+          this.status.textContent = 'Searching for sitemaps...'
+          this.fallbackSection.classList.remove('visible')
+          
+          // First check robots.txt
+          await this.checkRobotsTxt(baseUrl)
+          
+          // Then check all common paths
+          await this.checkCommonPaths(baseUrl)
+          
+          // Finally check the main page for HTML sitemap links
+          await this.checkMainPageLinks(baseUrl)
+          
+          if (this.foundSitemaps.size === 0) {
+            this.status.textContent = 'No sitemaps found.'
+            this.fallbackSection.classList.add('visible')
+          } else {
+            this.status.textContent = `Found ${this.foundSitemaps.size} sitemap(s). Click on a sitemap to view its URLs.`
+          }
+        } catch (error) {
+          this.status.textContent = `Error: ${error.message}`
+          this.status.className = 'error'
+        } finally {
+          this.searchButton.disabled = false
+        }
+      }
+
+      async extractHtmlUrls() {
+        try {
+          const baseUrl = this.normalizeUrl(this.urlInput.value)
+          this.extractHtmlButton.disabled = true
+          this.status.textContent = 'Extracting URLs from HTML...'
+          
+          const response = await fetch(baseUrl)
+          if (!response.ok) throw new Error('Failed to fetch the page')
+          
+          const text = await response.text()
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(text, 'text/html')
+          
+          // Extract all unique URLs from anchor tags
+          const links = doc.getElementsByTagName('a')
+          const uniqueUrls = new Set()
+          
+          for (const link of links) {
             try {
+              const href = link.href || link.getAttribute('href')
+              if (!href) continue
+              
               const url = new URL(href, baseUrl)
-              await this.addSitemap(url.href)
+              // Only include URLs from the same domain
+              if (url.hostname === new URL(baseUrl).hostname) {
+                uniqueUrls.add(url.href)
+              }
             } catch (error) {
               console.warn('Invalid URL:', href)
             }
           }
+
+          const urlList = Array.from(uniqueUrls)
+          this.urlResults.value = urlList.join('\n')
+          this.urlStats.textContent = `Found ${urlList.length} URLs in the HTML`
+          this.status.textContent = 'Successfully extracted URLs from HTML'
+          this.status.className = 'status success'
+        } catch (error) {
+          this.status.textContent = `Error extracting URLs: ${error.message}`
+          this.status.className = 'error'
+        } finally {
+          this.extractHtmlButton.disabled = false
         }
       }
-    } catch (error) {
-      console.warn('Error checking main page:', error)
-    }
-  }
 
-  async addSitemap(url) {
-    if (!this.foundSitemaps.has(url)) {
-      const urls = await this.parseSitemap(url)
-      if (urls.length > 0) {
-        this.foundSitemaps.set(url, urls)
-        this.addSitemapToUI(url, urls)
+      resetSearch() {
+        this.urlResults.value = ''
+        this.sitemapsList.innerHTML = ''
+        this.status.textContent = ''
+        this.status.className = 'status'
+        this.urlStats.textContent = ''
+        this.foundSitemaps.clear()
+        this.fallbackSection.classList.remove('visible')
       }
-    }
-  }
 
-  async parseSitemap(url) {
-    try {
-      const response = await fetch(url)
-      if (!response.ok) return []
-
-      const text = await response.text()
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(text, 'text/xml')
-      
-      // Handle sitemap index files
-      const sitemapNodes = doc.querySelectorAll('sitemap loc')
-      if (sitemapNodes.length > 0) {
-        let allUrls = []
-        for (const node of sitemapNodes) {
-          const sitemapUrl = node.textContent
-          const urls = await this.parseSitemap(sitemapUrl)
-          allUrls = allUrls.concat(urls)
+      normalizeUrl(url) {
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url
         }
-        return allUrls
+        return url.replace(/\/$/, '')
       }
 
-      // Handle regular sitemaps
-      const urlNodes = doc.querySelectorAll('url loc')
-      return Array.from(urlNodes).map(node => node.textContent)
-    } catch (error) {
-      console.warn('Error parsing sitemap:', error)
-      return []
+      isValidUrl(url) {
+        try {
+          new URL(url)
+          return true
+        } catch {
+          return false
+        }
+      }
+
+      async checkRobotsTxt(baseUrl) {
+        try {
+          const response = await fetch(`${baseUrl}/robots.txt`)
+          if (response.ok) {
+            const text = await response.text()
+            const sitemapUrls = text.match(/Sitemap: (.*?)$/gm)
+            if (sitemapUrls) {
+              for (const line of sitemapUrls) {
+                const url = line.replace('Sitemap:', '').trim()
+                await this.addSitemap(url)
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Error checking robots.txt:', error)
+        }
+      }
+
+      async checkCommonPaths(baseUrl) {
+        for (const path of commonPaths) {
+          try {
+            const url = `${baseUrl}${path}`
+            const response = await fetch(url)
+            if (response.ok) {
+              await this.addSitemap(url)
+            }
+          } catch (error) {
+            console.warn(`Error checking ${path}:`, error)
+          }
+        }
+      }
+
+      async checkMainPageLinks(baseUrl) {
+        try {
+          const response = await fetch(baseUrl)
+          if (response.ok) {
+            const text = await response.text()
+            const parser = new DOMParser()
+            const doc = parser.parseFromString(text, 'text/html')
+            
+            const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
+            for (const link of links) {
+              const href = link.href || link.getAttribute('href')
+              if (href) {
+                try {
+                  const url = new URL(href, baseUrl)
+                  await this.addSitemap(url.href)
+                } catch (error) {
+                  console.warn('Invalid URL:', href)
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Error checking main page:', error)
+        }
+      }
+
+      async addSitemap(url) {
+        if (!this.foundSitemaps.has(url)) {
+          const urls = await this.parseSitemap(url)
+          if (urls.length > 0) {
+            this.foundSitemaps.set(url, urls)
+            this.addSitemapToUI(url, urls)
+          }
+        }
+      }
+
+      async parseSitemap(url) {
+        try {
+          const response = await fetch(url)
+          if (!response.ok) return []
+
+          const text = await response.text()
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(text, 'text/xml')
+          
+          // Handle sitemap index files
+          const sitemapNodes = doc.querySelectorAll('sitemap loc')
+          if (sitemapNodes.length > 0) {
+            let allUrls = []
+            for (const node of sitemapNodes) {
+              const sitemapUrl = node.textContent
+              const urls = await this.parseSitemap(sitemapUrl)
+              allUrls = allUrls.concat(urls)
+            }
+            return allUrls
+          }
+
+          // Handle regular sitemaps
+          const urlNodes = doc.querySelectorAll('url loc')
+          return Array.from(urlNodes).map(node => node.textContent)
+        } catch (error) {
+          console.warn('Error parsing sitemap:', error)
+          return []
+        }
+      }
+
+      addSitemapToUI(url, urls) {
+        const item = document.createElement('div')
+        item.className = 'sitemap-item'
+        item.textContent = url
+        item.addEventListener('click', () => {
+          // Remove active class from all items
+          this.sitemapsList.querySelectorAll('.sitemap-item').forEach(item => {
+            item.classList.remove('active')
+          })
+          
+          // Add active class to clicked item
+          item.classList.add('active')
+          
+          // Display URLs
+          this.urlResults.value = urls.join('\n')
+          this.urlStats.textContent = `Found ${urls.length} URLs in this sitemap`
+        })
+        this.sitemapsList.appendChild(item)
+      }
     }
-  }
 
-  addSitemapToUI(url, urls) {
-    const item = document.createElement('div')
-    item.className = 'sitemap-item'
-    item.textContent = url
-    item.addEventListener('click', () => {
-      // Remove active class from all items
-      this.sitemapsList.querySelectorAll('.sitemap-item').forEach(item => {
-        item.classList.remove('active')
-      })
-      
-      // Add active class to clicked item
-      item.classList.add('active')
-      
-      // Display URLs
-      this.urlResults.value = urls.join('\n')
-      this.urlStats.textContent = `Found ${urls.length} URLs in this sitemap`
-    })
-    this.sitemapsList.appendChild(item)
-  }
-}
-
-// Initialize the app
-new SitemapFinder()
+    // Initialize the app
+    new SitemapFinder()
   </script>
 </body>
 </html>
