@@ -2,9 +2,9 @@
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
-[LLM Web Parser](https://lab.simonwisdom.com/url-parse) - Analyze a list of URLs with an LLM
+[LLM Web Parser](https://lab.simonwisdom.com/llm-web-parse) - Analyze a list of URLs with an LLM
 
-[Extract URLs](https://lab.simonwisdom.com/sitemap) - Extract URLs from a website for analysis in the LLM Web Parser
+[Extract URLs](https://lab.simonwisdom.com/extract-urls) - Extract URLs from a website for analysis in the LLM Web Parser
 
 [Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Convert a MkDocs site to Markdown
  
