@@ -4,6 +4,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 [LLM Web Parser](https://lab.simonwisdom.com/url-parse) - Analyze a list of URLs with an LLM
 
+[Sitemap Finder](https://lab.simonwisdom.com/sitemap) - Find sitemaps for a website and extract the URLs
+
 [Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Convert a MkDocs site to Markdown
  
 [LLM Widget](https://lab.simonwisdom.com/llm-widget) - A static widget to message multiple LLM providers 

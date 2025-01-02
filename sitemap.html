@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sitemap Finder</title>
+  <script src="js/common.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    h1, h2 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .results-container {
+      margin-top: 20px;
+    }
+
+    .sitemaps-list {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+
+    .sitemap-item {
+      padding: 8px;
+      margin-bottom: 8px;
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .sitemap-item:hover {
+      background: #f0f0f0;
+    }
+
+    .sitemap-item.active {
+      background: #e3f2fd;
+      border-color: #90caf9;
+    }
+
+    #urlResults {
+      width: 100%;
+      height: 500px;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      resize: vertical;
+    }
+
+    .status {
+      margin-top: 10px;
+      color: #666;
+    }
+
+    .error {
+      color: #dc3545;
+      margin-top: 10px;
+    }
+
+    .loading {
+      display: inline-block;
+      margin-left: 10px;
+    }
+
+    .stats {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sitemap Finder</h1>
+    <p>Find sitemaps for a website and extract the URLs.</p>
+    <div class="input-group">
+      <input type="url" id="urlInput" placeholder="Enter website URL (e.g., https://example.com)" required>
+      <button id="searchButton">Search for Sitemaps</button>
+    </div>
+    <div id="status" class="status"></div>
+    
+    <div class="results-container">
+      <h2>Found Sitemaps</h2>
+      <div id="sitemapsList" class="sitemaps-list"></div>
+      <h2>URLs in Selected Sitemap</h2>
+      <textarea id="urlResults" readonly></textarea>
+      <div id="urlStats" class="stats"></div>
+    </div>
+  </div>
+
+  <script type="module">
+const commonPaths = [
+  '/sitemap.xml',
+  '/sitemap_index.xml',
+  '/sitemaps/sitemap.xml',
+  '/sitemap/sitemap.xml',
+  '/sitemap.php',
+  '/sitemap.html',
+  '/sitemap.txt',
+  '/wp-sitemap.xml',
+  '/feed/',
+  '/sitemap_products.xml',
+  '/component/osmap/xml',
+  '/site-map.html',
+  '/site-map/',
+  '/pages/',
+  '/archive/'
+]
+
+class SitemapFinder {
+  constructor() {
+    this.urlInput = document.getElementById('urlInput')
+    this.searchButton = document.getElementById('searchButton')
+    this.urlResults = document.getElementById('urlResults')
+    this.sitemapsList = document.getElementById('sitemapsList')
+    this.status = document.getElementById('status')
+    this.urlStats = document.getElementById('urlStats')
+    this.foundSitemaps = new Map() // URL -> parsed URLs
+    
+    this.searchButton.addEventListener('click', () => this.startSearch())
+  }
+
+  async startSearch() {
+    try {
+      this.resetSearch()
+      const baseUrl = this.normalizeUrl(this.urlInput.value)
+      
+      if (!this.isValidUrl(baseUrl)) {
+        throw new Error('Please enter a valid URL')
+      }
+
+      this.searchButton.disabled = true
+      this.status.textContent = 'Searching for sitemaps...'
+      
+      // First check robots.txt
+      await this.checkRobotsTxt(baseUrl)
+      
+      // Then check all common paths
+      await this.checkCommonPaths(baseUrl)
+      
+      // Finally check the main page for HTML sitemap links
+      await this.checkMainPageLinks(baseUrl)
+      
+      if (this.foundSitemaps.size === 0) {
+        this.status.textContent = 'No sitemaps found.'
+      } else {
+        this.status.textContent = `Found ${this.foundSitemaps.size} sitemap(s). Click on a sitemap to view its URLs.`
+      }
+    } catch (error) {
+      this.status.textContent = `Error: ${error.message}`
+      this.status.className = 'error'
+    } finally {
+      this.searchButton.disabled = false
+    }
+  }
+
+  resetSearch() {
+    this.urlResults.value = ''
+    this.sitemapsList.innerHTML = ''
+    this.status.textContent = ''
+    this.status.className = 'status'
+    this.urlStats.textContent = ''
+    this.foundSitemaps.clear()
+  }
+
+  normalizeUrl(url) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url
+    }
+    return url.replace(/\/$/, '')
+  }
+
+  isValidUrl(url) {
+    try {
+      new URL(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async checkRobotsTxt(baseUrl) {
+    try {
+      const response = await fetch(`${baseUrl}/robots.txt`)
+      if (response.ok) {
+        const text = await response.text()
+        const sitemapUrls = text.match(/Sitemap: (.*?)$/gm)
+        if (sitemapUrls) {
+          for (const line of sitemapUrls) {
+            const url = line.replace('Sitemap:', '').trim()
+            await this.addSitemap(url)
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking robots.txt:', error)
+    }
+  }
+
+  async checkCommonPaths(baseUrl) {
+    for (const path of commonPaths) {
+      try {
+        const url = `${baseUrl}${path}`
+        const response = await fetch(url)
+        if (response.ok) {
+          await this.addSitemap(url)
+        }
+      } catch (error) {
+        console.warn(`Error checking ${path}:`, error)
+      }
+    }
+  }
+
+  async checkMainPageLinks(baseUrl) {
+    try {
+      const response = await fetch(baseUrl)
+      if (response.ok) {
+        const text = await response.text()
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(text, 'text/html')
+        
+        const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
+        for (const link of links) {
+          const href = link.href || link.getAttribute('href')
+          if (href) {
+            try {
+              const url = new URL(href, baseUrl)
+              await this.addSitemap(url.href)
+            } catch (error) {
+              console.warn('Invalid URL:', href)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking main page:', error)
+    }
+  }
+
+  async addSitemap(url) {
+    if (!this.foundSitemaps.has(url)) {
+      const urls = await this.parseSitemap(url)
+      if (urls.length > 0) {
+        this.foundSitemaps.set(url, urls)
+        this.addSitemapToUI(url, urls)
+      }
+    }
+  }
+
+  async parseSitemap(url) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) return []
+
+      const text = await response.text()
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(text, 'text/xml')
+      
+      // Handle sitemap index files
+      const sitemapNodes = doc.querySelectorAll('sitemap loc')
+      if (sitemapNodes.length > 0) {
+        let allUrls = []
+        for (const node of sitemapNodes) {
+          const sitemapUrl = node.textContent
+          const urls = await this.parseSitemap(sitemapUrl)
+          allUrls = allUrls.concat(urls)
+        }
+        return allUrls
+      }
+
+      // Handle regular sitemaps
+      const urlNodes = doc.querySelectorAll('url loc')
+      return Array.from(urlNodes).map(node => node.textContent)
+    } catch (error) {
+      console.warn('Error parsing sitemap:', error)
+      return []
+    }
+  }
+
+  addSitemapToUI(url, urls) {
+    const item = document.createElement('div')
+    item.className = 'sitemap-item'
+    item.textContent = url
+    item.addEventListener('click', () => {
+      // Remove active class from all items
+      this.sitemapsList.querySelectorAll('.sitemap-item').forEach(item => {
+        item.classList.remove('active')
+      })
+      
+      // Add active class to clicked item
+      item.classList.add('active')
+      
+      // Display URLs
+      this.urlResults.value = urls.join('\n')
+      this.urlStats.textContent = `Found ${urls.length} URLs in this sitemap`
+    })
+    this.sitemapsList.appendChild(item)
+  }
+}
+
+// Initialize the app
+new SitemapFinder()
+  </script>
+</body>
+</html>
