@@ -1,33 +1,52 @@
-const fetch = require('node-fetch');
+export const config = {
+  runtime: 'edge',
+};
 
-module.exports = async function handler(req, res) {
-  const origin = req.headers.origin;
+export default async function handler(req) {
+  const url = new URL(req.url);
+  const origin = req.headers.get('origin');
   const isAllowed = origin && (
-    origin.endsWith('simonwisdom.com') 
+    origin.endsWith('simonwisdom.com')
   );
   
   if (!isAllowed) {
-    return res.status(403).json({
+    return new Response(JSON.stringify({
       error: 'Unauthorized origin'
+    }), {
+      status: 403,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   }
 
   // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+  };
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
   }
 
   try {
-    // Expect the target URL in the query string
-    const targetUrl = req.query.url;
+    const targetUrl = url.searchParams.get('url');
     
     if (!targetUrl) {
-      return res.status(400).json({ error: 'Missing target URL' });
+      return new Response(JSON.stringify({ error: 'Missing target URL' }), {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      });
     }
 
     // Make the request to the target URL
@@ -38,19 +57,29 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    // Get the content type from the response
-    const contentType = response.headers.get('content-type');
-    res.setHeader('Content-Type', contentType || 'text/plain');
-
-    // Stream the response back
+    // Get the response content
     const data = await response.text();
-    res.send(data);
+    const contentType = response.headers.get('content-type');
+
+    // Return the proxied response
+    return new Response(data, {
+      status: response.status,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': contentType || 'text/plain'
+      }
+    });
 
   } catch (error) {
-    console.error('Proxy Error:', error);
-    res.status(500).json({ 
+    return new Response(JSON.stringify({ 
       error: 'Error proxying request',
       details: error.message 
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
     });
   }
-};
+}
