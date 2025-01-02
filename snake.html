@@ -8,82 +8,80 @@
   <style>
     /* Center container and ensure it stays centered */
     .container {
-      margin: 0 auto;
-      text-align: center;
-      width: fit-content;
-    }
-    #game-board {
-      width: 400px;
-      height: 400px;
-      border: 1px solid black;
-      position: relative;
-      cursor: pointer;
-      outline: none;
-      margin: 0 auto;
-    }
-    .snake {
-      position: absolute;
-      width: 10px;
-      height: 10px;
-      background-color: green;
-    }
-    .opponent {
-      background-color: rgb(212, 255, 0);
-    }
-    .apple {
-      position: absolute;
-      width: 10px;
-      height: 10px;
-      background-color: red;
-    }
-    .bullet {
-      position: absolute;
-      width: 5px;
-      height: 5px;
-      background-color: blue;
-    }
-    #score, #high-score {
-      font-size: 24px;
-      font-weight: bold;
-    }
-    #controls {
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-    #game-over-modal {
-      display: none;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 20px;
-      border-radius: 8px;
-      text-align: center;
-      width: 80%; max-width: 300px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-      z-index: 1000;
-    }
-    .modal-content {
-      margin: 0 auto;
-    }
-    .btn-primary {
-      background-color: #111;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    .btn-primary:hover {
-      background-color: #333;
-    }
-    /* Keep the game from scrolling but don't remove margin: auto centering */
-    body.game-focused {
-      overflow: hidden;
-      height: 100vh;
-      /* margin: 0; <-- REMOVED to avoid shifting */
-    }
+  margin: 0 auto;
+  text-align: center;
+  width: fit-content;
+}
+
+#game-board {
+  width: 400px;
+  height: 400px;
+  border: 1px solid black;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  margin: 0 auto;
+}
+
+.snake {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: green;
+}
+
+.opponent {
+  background-color: rgb(212, 255, 0);
+}
+
+.apple {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+}
+
+.bullet {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background-color: blue;
+}
+
+#score, #high-score {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+#controls {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+#game-over-modal {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  width: 80%;
+  max-width: 300px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.modal-content {
+  margin: 0 auto;
+}
+
+body.game-focused {
+  overflow: hidden;
+  height: 100vh;
+}
   </style>
 </head>
 <body>

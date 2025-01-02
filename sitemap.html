@@ -6,128 +6,60 @@
   <title>Sitemap Finder</title>
   <script src="js/common.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+   .input-group {
+  margin-bottom: 20px;
+}
 
-    body {
-      font-family: Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      margin: 0;
-      padding: 20px;
-      background: #f5f5f5;
-    }
+.sitemaps-list {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
 
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
+.sitemap-item {
+  padding: 8px;
+  margin-bottom: 8px;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
 
-    h1, h2 {
-      margin-top: 0;
-      color: #333;
-    }
+.sitemap-item:hover {
+  background: #f0f0f0;
+}
 
-    .input-group {
-      margin-bottom: 20px;
-    }
+.sitemap-item.active {
+  background: #e3f2fd;
+  border-color: #90caf9;
+}
 
-    input[type="url"] {
-      width: 100%;
-      padding: 10px;
-      font-size: 16px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      margin-bottom: 10px;
-    }
+#urlResults {
+  width: 100%;
+  height: 500px;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: monospace;
+  resize: vertical;
+}
 
-    button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      font-size: 16px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+.stats {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #666;
+}
 
-    button:hover {
-      background: #0056b3;
-    }
-
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-
-    .results-container {
-      margin-top: 20px;
-    }
-
-    .sitemaps-list {
-      background: #f8f9fa;
-      padding: 15px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-      max-height: 200px;
-      overflow-y: auto;
-      margin-bottom: 20px;
-    }
-
-    .sitemap-item {
-      padding: 8px;
-      margin-bottom: 8px;
-      background: white;
-      border: 1px solid #eee;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    .sitemap-item:hover {
-      background: #f0f0f0;
-    }
-
-    .sitemap-item.active {
-      background: #e3f2fd;
-      border-color: #90caf9;
-    }
-
-    #urlResults {
-      width: 100%;
-      height: 500px;
-      padding: 10px;
-      font-size: 16px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-family: monospace;
-      resize: vertical;
-    }
-
-    .status {
-      margin-top: 10px;
-      color: #666;
-    }
-
-    .error {
-      color: #dc3545;
-      margin-top: 10px;
-    }
-
-    .loading {
-      display: inline-block;
-      margin-left: 10px;
-    }
-
-    .stats {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #666;
-    }
+.loading {
+  display: inline-block;
+  margin-left: 10px;
+}
   </style>
 </head>
 <body>

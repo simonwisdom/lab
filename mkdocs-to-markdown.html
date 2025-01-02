@@ -3,90 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MkDocs Sitemap Crawler</title>
+  <title>MkDocs to Markdown</title>
   <script src="js/common.js"></script>
   <style>
-  * {
-    box-sizing: border-box;
-  }
-
-  body {
-    font-family: Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-
-  input, textarea {
-    font-size: 16px;
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-  }
-
   textarea {
-    height: 400px;
-    font-family: monospace;
-  }
+  height: 400px;
+  font-family: monospace;
+}
 
-  button {
-    font-size: 16px;
-    padding: 8px 16px;
-    background: #0066cc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-  }
+.status {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 4px;
+}
 
-  button:disabled {
-    background: #ccc;
-  }
+.progress {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
 
-  .status {
-    margin: 10px 0;
-    padding: 10px;
-    border-radius: 4px;
-  }
+.progress-bar {
+  height: 20px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
 
-  .error {
-    background: #fee;
-    color: #c00;
-  }
+.progress-fill {
+  height: 100%;
+  background: #0066cc;
+  transition: width 0.3s ease;
+}
 
-  .success {
-    background: #efe;
-    color: #080;
-  }
-
-  .progress {
-    margin: 10px 0;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-  }
-
-  .progress-bar {
-    height: 20px;
-    background: #eee;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: #0066cc;
-    transition: width 0.3s ease;
-  }
-
-  .stats {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 5px;
-    font-size: 14px;
-    color: #666;
-  }
+.stats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 14px;
+  color: #666;
+}
   </style>
 </head>
 <body>

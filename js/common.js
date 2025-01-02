@@ -22,7 +22,7 @@
     footer.innerHTML = `
       <p>
         <a href="https://lab.simonwisdom.com/favicon.ico">
-          <img src="https://lab.simonwisdom.com/favicon.ico" alt="Favicon" style="width:16px; height:16px; vertical-align:middle;">
+          <img src="https://lab.simonwisdom.com/favicon.ico" alt="Favicon">
         </a>
         <a href="https://lab.simonwisdom.com">lab.simonwisdom.com</a>
       </p>
