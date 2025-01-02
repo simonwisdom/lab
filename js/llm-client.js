@@ -34,7 +34,7 @@ export class LLMClient {
             model: 'gemini-1.5-flash-latest',
             temperature: 0.7,
             maxTokens: 1000,
-            proxyUrl: 'https://gemini-flash-proxy.vercel.app/proxy',
+            proxyUrl: 'https://lab-proxy.vercel.app/api/gemini-proxy',
             ...config
         };
 
