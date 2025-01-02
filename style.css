@@ -24,6 +24,11 @@
     padding: 2rem;
     -webkit-font-smoothing: antialiased;
   }
+
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
   
   /* Organic background effect */
   body::before {
