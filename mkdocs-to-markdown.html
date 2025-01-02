@@ -6,6 +6,10 @@
   <title>MkDocs to Markdown</title>
   <script src="js/common.js"></script>
   <style>
+* { 
+  box-sizing: border-box;
+}
+
   textarea {
   height: 400px;
   font-family: monospace;
@@ -47,6 +51,7 @@
   </style>
 </head>
 <body>
+  <div class="container">
   <h1>MkDocs to Markdown</h1>
   <p>Convert a MkDocs site to Markdown.</p>
   
@@ -73,7 +78,7 @@
     <button id="download" disabled>Download Markdown</button>
     <button id="copy" disabled>Copy to Clipboard</button>
   </div>
-
+</div>
   <script type="module">
 // Global state
 let baseUrl = ''
