@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -70,6 +71,18 @@
       border: 1px solid #ddd;
     }
 
+    .sitemaps-section {
+      display: none;
+    }
+
+    .sitemaps-section.visible {
+      display: block;
+    }
+
+    .fallback-section {
+      display: none;
+    }
+
     .fallback-section.visible {
       display: block;
     }
@@ -93,6 +106,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>Sitemap Finder</h1>
@@ -102,20 +116,21 @@
       <button id="searchButton">Search for Sitemaps</button>
     </div>
     <div id="status" class="status"></div>
-    
+
     <div id="fallbackSection" class="fallback-section">
       <h2>No Sitemaps Found</h2>
       <p>Would you like to extract all URLs from the page's HTML instead?</p>
       <button id="extractHtmlButton" class="btn-secondary">Extract URLs from HTML</button>
     </div>
 
-    <div class="results-container">
+    <div id="sitemapsSection" class="sitemaps-section">
       <h2>Found Sitemaps</h2>
       <div id="sitemapsList" class="sitemaps-list"></div>
-      <h2>URLs in Selected Sitemap</h2>
-      <textarea id="urlResults" readonly></textarea>
-      <div id="urlStats" class="stats"></div>
     </div>
+
+    <h2>URLs in Selected Sitemap</h2>
+    <textarea id="urlResults" readonly></textarea>
+    <div id="urlStats" class="stats"></div>
   </div>
 
   <script type="module">
@@ -145,13 +160,61 @@
         this.sitemapsList = document.getElementById('sitemapsList')
         this.status = document.getElementById('status')
         this.urlStats = document.getElementById('urlStats')
+        this.sitemapsSection = document.getElementById('sitemapsSection');
         this.fallbackSection = document.getElementById('fallbackSection')
         this.extractHtmlButton = document.getElementById('extractHtmlButton')
         this.foundSitemaps = new Map() // URL -> parsed URLs
         this.proxyBaseUrl = 'https://lab-proxy.vercel.app/api/proxy'
-        
+
+
         this.searchButton.addEventListener('click', () => this.startSearch())
         this.extractHtmlButton.addEventListener('click', () => this.extractHtmlUrls())
+      }
+
+      async extractHtmlUrls() {
+        try {
+          const baseUrl = this.normalizeUrl(this.urlInput.value);
+          this.extractHtmlButton.disabled = true;
+          this.status.textContent = 'Extracting URLs from HTML...';
+
+          // Call Jina API endpoint
+          const jinaResponse = await fetch(`https://r.jina.ai/${encodeURIComponent(baseUrl)}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': 'Bearer jina_98f5359b8ac94d8f81da80ce4e0fdd192mA17qpogTYwvkIrTPWJ6Qej-xn3',
+              'X-With-Links-Summary': 'true',
+              'X-Retain-Images': 'none'
+            }
+          });
+
+          if (!jinaResponse.ok) {
+            throw new Error('Failed to extract URLs from Jina API');
+          }
+
+          const markdownContent = await jinaResponse.text();
+
+          // Extract URLs from 'Links/Buttons:' section
+          const linksSection = markdownContent.split('Links/Buttons:')[1] || '';
+          const rawUrls = Array.from(linksSection.matchAll(/\((https?:\/\/[^\s)]+)\)/g)).map(match => match[1]);
+
+          // Remove duplicates and filter out mailto links
+          const uniqueUrls = Array.from(new Set(rawUrls)).filter(url => !url.startsWith('mailto:'));
+
+          if (uniqueUrls.length === 0) {
+            throw new Error('No valid URLs found in the Links/Buttons section');
+          }
+
+          // Display URLs in the textarea
+          this.urlResults.value = uniqueUrls.join('\n');
+          this.urlStats.textContent = `Found ${uniqueUrls.length} URLs`;
+          this.status.textContent = 'Successfully extracted URLs';
+          this.status.className = 'status success';
+        } catch (error) {
+          this.status.textContent = `Error: ${error.message}`;
+          this.status.className = 'error';
+        } finally {
+          this.extractHtmlButton.disabled = false;
+        }
       }
 
       async proxyFetch(url) {
@@ -172,81 +235,33 @@
       }
 
       async startSearch() {
+        this.resetUI();
+        this.status.textContent = 'Searching for sitemaps...';
+        this.searchButton.disabled = true;
+
         try {
-          this.resetSearch()
-          const baseUrl = this.normalizeUrl(this.urlInput.value)
-          
+          const baseUrl = this.normalizeUrl(this.urlInput.value);
+
           if (!this.isValidUrl(baseUrl)) {
-            throw new Error('Please enter a valid URL')
+            throw new Error('Please enter a valid URL');
           }
 
-          this.searchButton.disabled = true
-          this.status.textContent = 'Searching for sitemaps...'
-          this.fallbackSection.classList.remove('visible')
-          
-          // First check robots.txt
-          await this.checkRobotsTxt(baseUrl)
-          
-          // Then check all common paths
-          await this.checkCommonPaths(baseUrl)
-          
-          // Finally check the main page for HTML sitemap links
-          await this.checkMainPageLinks(baseUrl)
-          
+          await this.checkRobotsTxt(baseUrl);
+          await this.checkCommonPaths(baseUrl);
+          await this.checkMainPageLinks(baseUrl);
+
           if (this.foundSitemaps.size === 0) {
-            this.status.textContent = 'No sitemaps found.'
-            this.fallbackSection.classList.add('visible')
+            this.fallbackSection.classList.add('visible');
+            this.status.textContent = 'No sitemaps found.';
           } else {
-            this.status.textContent = `Found ${this.foundSitemaps.size} sitemap(s). Click on a sitemap to view its URLs.`
+            this.sitemapsSection.classList.add('visible');
+            this.status.textContent = `Found ${this.foundSitemaps.size} sitemap(s). Click on a sitemap to view its URLs.`;
           }
         } catch (error) {
-          this.status.textContent = `Error: ${error.message}`
-          this.status.className = 'error'
+          this.status.textContent = `Error: ${error.message}`;
+          this.status.className = 'error';
         } finally {
-          this.searchButton.disabled = false
-        }
-      }
-
-      async extractHtmlUrls() {
-        try {
-          const baseUrl = this.normalizeUrl(this.urlInput.value)
-          this.extractHtmlButton.disabled = true
-          this.status.textContent = 'Extracting URLs from HTML...'
-          
-          const response = await this.proxyFetch(baseUrl)
-          const text = await response.text()
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(text, 'text/html')
-          
-          // Extract all unique URLs from anchor tags
-          const links = doc.getElementsByTagName('a')
-          const uniqueUrls = new Set()
-          
-          for (const link of links) {
-            try {
-              const href = link.href || link.getAttribute('href')
-              if (!href) continue
-              
-              const url = new URL(href, baseUrl)
-              // Only include URLs from the same domain
-              if (url.hostname === new URL(baseUrl).hostname) {
-                uniqueUrls.add(url.href)
-              }
-            } catch (error) {
-              console.warn('Invalid URL:', href)
-            }
-          }
-
-          const urlList = Array.from(uniqueUrls)
-          this.urlResults.value = urlList.join('\n')
-          this.urlStats.textContent = `Found ${urlList.length} URLs in the HTML`
-          this.status.textContent = 'Successfully extracted URLs from HTML'
-          this.status.className = 'status success'
-        } catch (error) {
-          this.status.textContent = `Error extracting URLs: ${error.message}`
-          this.status.className = 'error'
-        } finally {
-          this.extractHtmlButton.disabled = false
+          this.searchButton.disabled = false;
         }
       }
 
@@ -258,6 +273,16 @@
         this.urlStats.textContent = ''
         this.foundSitemaps.clear()
         this.fallbackSection.classList.remove('visible')
+      }
+
+      resetUI() {
+        this.sitemapsList.innerHTML = '';
+        this.urlResults.value = '';
+        this.urlStats.textContent = '';
+        this.status.textContent = '';
+        this.status.className = 'status';
+        if (this.fallbackSection) this.fallbackSection.classList.remove('visible');
+        if (this.sitemapsSection) this.sitemapsSection.classList.remove('visible');
       }
 
       normalizeUrl(url) {
@@ -312,7 +337,7 @@
           const text = await response.text()
           const parser = new DOMParser()
           const doc = parser.parseFromString(text, 'text/html')
-          
+
           const links = doc.querySelectorAll('a[href*="sitemap"], link[rel="alternate"]')
           for (const link of links) {
             const href = link.href || link.getAttribute('href')
@@ -346,7 +371,7 @@
           const text = await response.text()
           const parser = new DOMParser()
           const doc = parser.parseFromString(text, 'text/xml')
-          
+
           // Handle sitemap index files
           const sitemapNodes = doc.querySelectorAll('sitemap loc')
           if (sitemapNodes.length > 0) {
@@ -377,10 +402,10 @@
           this.sitemapsList.querySelectorAll('.sitemap-item').forEach(item => {
             item.classList.remove('active')
           })
-          
+
           // Add active class to clicked item
           item.classList.add('active')
-          
+
           // Display URLs
           this.urlResults.value = urls.join('\n')
           this.urlStats.textContent = `Found ${urls.length} URLs in this sitemap`
@@ -393,4 +418,5 @@
     new SitemapFinder()
   </script>
 </body>
+
 </html>
