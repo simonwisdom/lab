@@ -11,8 +11,6 @@ export default async function handler(req, res) {
   // Check if the origin ends with simonwisdom.com
   const isAllowed = origin && (
     origin.endsWith('simonwisdom.com') 
-    // || 
-    // origin === 'http://localhost:3000'
   );
   
   if (!isAllowed) {
