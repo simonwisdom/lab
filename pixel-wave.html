@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Pixel Wave</title>
+  <script src="js/common.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #controls {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 1rem;
+      border-radius: 8px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    #controls label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #1a1a1a;
+    }
+
+    .footer-content {
+      padding-top: 1rem;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    /* Override any default footer styles */
+    footer {
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      text-align: center;
+    }
+
+    footer p {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="controls">
+    <label>
+      Wave Speed
+      <input type="range" id="speed" min="0.2" max="3" value="1" step="0.2">
+    </label>
+    <label>
+      Pixel Size
+      <input type="range" id="size" min="10" max="100" value="40">
+    </label>
+    <div class="footer-content"></div>
+  </div>
+
+  <script type="module">
+    // Wait for footer to be created then move it
+    const moveFooter = () => {
+      const footer = document.querySelector('footer')
+      const footerContent = document.querySelector('.footer-content')
+      if (footer && footerContent) {
+        footerContent.appendChild(footer)
+      }
+    }
+
+    // Try immediately and also after a short delay to ensure footer exists
+    moveFooter()
+    setTimeout(moveFooter, 100)
+
+    const canvas = document.getElementById('canvas')
+    const ctx = canvas.getContext('2d')
+    const speedInput = document.getElementById('speed')
+    const sizeInput = document.getElementById('size')
+
+    let pixelSize = parseInt(sizeInput.value)
+    let currentWave = 0
+    let currentHue = 0
+    let animationId = null
+    
+    // Pre-calculate some values
+    const TWO_PI = Math.PI * 2
+    let cols, rows, centerX, centerY, distances
+
+    function calculateDistances() {
+      distances = new Float32Array(cols * rows)
+      const maxPossibleDist = Math.sqrt((cols/2) ** 2 + (rows/2) ** 2)
+      
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const dx = x - centerX
+          const dy = y - centerY
+          const dist = Math.sqrt(dx * dx + dy * dy) / maxPossibleDist
+          distances[y * cols + x] = dist
+        }
+      }
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      
+      ctx.scale(dpr, dpr)
+      
+      cols = Math.ceil(rect.width / pixelSize)
+      rows = Math.ceil(rect.height / pixelSize)
+      centerX = cols / 2
+      centerY = rows / 2
+      
+      calculateDistances()
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      const speed = parseFloat(speedInput.value)
+      currentWave += 0.02 * speed
+      currentHue = (currentHue + 0.2 * speed) % 360
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const dist = distances[y * cols + x]
+          const wave = Math.sin(dist * 6 - currentWave)
+          const intensity = (wave + 1) / 2
+
+          const hueOffset = dist * 30
+          const hue = (currentHue + hueOffset) % 360
+          const saturation = 60
+          const lightness = 30 + 40 * intensity
+
+          ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${0.3 + 0.7 * intensity})`
+          ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize - 1, pixelSize - 1)
+        }
+      }
+
+      animationId = requestAnimationFrame(draw)
+    }
+
+    function restart() {
+      if (animationId) cancelAnimationFrame(animationId)
+      pixelSize = parseInt(sizeInput.value)
+      resizeCanvas()
+      draw()
+    }
+
+    // Event listeners
+    window.addEventListener('resize', restart)
+    speedInput.addEventListener('input', () => {
+      currentWave = 0
+    })
+    sizeInput.addEventListener('input', restart)
+
+    // Initial setup
+    restart()
+  </script>
+</body>
+</html>
