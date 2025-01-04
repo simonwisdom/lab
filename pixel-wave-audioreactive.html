@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <script src="js/common.js"></script>
   <title>Interactive Audio Reactive Wave</title>
+  <script src="js/common.js"></script>
   <style>
     body {
       margin: 0;
@@ -12,6 +12,7 @@
       background: #000;
       overflow: hidden;
       cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
     canvas {
@@ -80,11 +81,30 @@
       margin-top: 0.25rem;
     }
 
+    #controls select {
+      width: 200px;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      color: rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+    }
+
+    #controls select:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    #controls select option {
+      background: #000;
+      color: #fff;
+    }
     .footer-content {
       padding-top: 1rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
+    /* Override any default footer styles */
     footer {
       margin: 0 !important;
       padding: 0 !important;
@@ -119,21 +139,30 @@
   <button id="toggleButton">⚙</button>
   <div id="controls" class="hidden">
     <label>
+      Color Palette
+      <select id="palette">
+        <option value="wes">wes</option>
+        <option value="neon">neon</option>
+        <option value="earth">earth</option>
+        <option value="mono">mono</option>
+      </select>
+    </label>
+    <label>
       Base Speed
-      <input type="range" id="speed" min="0.2" max="3" value="1" step="0.2">
+      <input type="range" id="speed" min="0.05" max="1" value="0.5" step="0.05">
     </label>
     <label>
       Pixel Size
       <input type="range" id="size" min="10" max="100" value="40">
     </label>
-    <label>
+          <label>
       Audio Sensitivity
       <input type="range" id="sensitivity" min="1" max="5" value="2" step="0.1">
     </label>
     <div class="footer-content"></div>
   </div>
 
-  <script type="module">
+  <script>
     // Wait for footer to be created then move it
     const moveFooter = () => {
       const footer = document.querySelector('footer')
@@ -151,12 +180,41 @@
     const speedInput = document.getElementById('speed')
     const sizeInput = document.getElementById('size')
     const sensitivityInput = document.getElementById('sensitivity')
+    const paletteSelect = document.getElementById('palette')
     const toggleButton = document.getElementById('toggleButton')
     const controls = document.getElementById('controls')
 
+    // Color palettes
+    const palettes = {
+      wes: {
+        colors: ['#FE0000', '#F6D743', '#C5DEBA'],
+        saturationRange: [50, 70],
+        lightnessRange: [40, 60],
+        alphaRange: [0.3, 0.7]
+      },
+      neon: {
+        colors: ['#FF00FF', '#00FFFF', '#0000FF'],
+        saturationRange: [80, 100],
+        lightnessRange: [40, 60],
+        alphaRange: [0.2, 0.6]
+      },
+      mono: {
+        colors: ['#FFFFFF', '#AAAAAA'],
+        saturationRange: [0, 0],
+        lightnessRange: [20, 80],
+        alphaRange: [0.1, 0.4]
+      },
+      earth: {
+        colors: ['#8B4513', '#556B2F', '#DAA520'],
+        saturationRange: [30, 50],
+        lightnessRange: [30, 50],
+        alphaRange: [0.3, 0.7]
+      }
+    }
+
     // Toggle controls visibility
     toggleButton.addEventListener('click', (e) => {
-      e.stopPropagation() // Prevent canvas click
+      e.stopPropagation()
       controls.classList.toggle('hidden')
     })
 
@@ -176,7 +234,6 @@
     let lastAudioLevel = 0
     let smoothedAudioLevel = 0
     
-    // Center point animation
     let centerX = window.innerWidth / 2
     let centerY = window.innerHeight / 2
     let targetX = centerX
@@ -185,7 +242,7 @@
     const TWO_PI = Math.PI * 2
     let cols, rows, distances
 
-    // Auto-initialize audio when document is loaded
+    // Auto-initialize audio
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)()
@@ -232,7 +289,6 @@
       cols = Math.ceil(rect.width / pixelSize)
       rows = Math.ceil(rect.height / pixelSize)
       
-      // Update center positions on resize
       if (targetX === undefined) {
         targetX = rect.width / 2
         centerX = targetX
@@ -249,12 +305,9 @@
       if (!isAudioInitialized) return 0
       
       analyser.getByteFrequencyData(dataArray)
-      
-      // Get average of frequencies
       const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length
-      const normalizedLevel = average / 255 // Normalize to 0-1
+      const normalizedLevel = average / 255
       
-      // Smooth the audio level
       smoothedAudioLevel = smoothedAudioLevel * 0.8 + normalizedLevel * 0.2
       lastAudioLevel = normalizedLevel
       
@@ -262,15 +315,57 @@
     }
 
     function updateCenter() {
-      // Smooth center point movement
       const easing = 0.1
       centerX += (targetX - centerX) * easing
       centerY += (targetY - centerY) * easing
       
-      // Recalculate distances if center has moved significantly
       if (Math.abs(centerX - targetX) > 0.1 || Math.abs(centerY - targetY) > 0.1) {
         calculateDistances()
       }
+    }
+
+    function getColorFromPalette(intensity, audioLevel, dist) {
+      const palette = palettes[paletteSelect.value]
+      
+      // Use the wave position to smoothly transition between colors
+      const position = (currentWave * 0.1) % 1
+      const numColors = palette.colors.length
+      
+      // Find the two colors to transition between
+      const index1 = Math.floor(position * numColors)
+      const index2 = (index1 + 1) % numColors
+      
+      // Calculate transition progress between these two colors
+      const progress = (position * numColors) % 1
+      
+      // Get the two colors
+      const color1 = palette.colors[index1]
+      const color2 = palette.colors[index2]
+      
+      // Convert both hex colors to RGB
+      const r1 = parseInt(color1.slice(1,3), 16)
+      const g1 = parseInt(color1.slice(3,5), 16)
+      const b1 = parseInt(color1.slice(5,7), 16)
+      
+      const r2 = parseInt(color2.slice(1,3), 16)
+      const g2 = parseInt(color2.slice(3,5), 16)
+      const b2 = parseInt(color2.slice(5,7), 16)
+      
+      // Interpolate between the colors
+      const r = Math.round(r1 + (r2 - r1) * progress)
+      const g = Math.round(g1 + (g2 - g1) * progress)
+      const b = Math.round(b1 + (b2 - b1) * progress)
+      
+      // Apply intensity and audio reactivity
+      const s = Math.min(100, Math.max(0, 
+        palette.saturationRange[0] + (palette.saturationRange[1] - palette.saturationRange[0]) * intensity
+      ))
+      const l = Math.min(100, Math.max(0,
+        palette.lightnessRange[0] + (palette.lightnessRange[1] - palette.lightnessRange[0]) * (intensity + audioLevel)
+      ))
+      const a = palette.alphaRange[0] + (palette.alphaRange[1] - palette.alphaRange[0]) * (intensity + audioLevel * 0.3)
+      
+      return `rgba(${r}, ${g}, ${b}, ${a})`
     }
 
     function draw() {
@@ -282,26 +377,16 @@
       const sensitivity = parseFloat(sensitivityInput.value)
       const audioLevel = getAudioData() * sensitivity
       
-      // Make the wave progress based on audio level
       currentWave += (0.02 + audioLevel * 0.1) * baseSpeed
-      currentHue = (currentHue + audioLevel * 2) % 360
 
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           const dist = distances[y * cols + x]
-          
-          // Create wave pattern that moves outward from center
           const wave = Math.sin(dist * 10 - currentWave + audioLevel * 5)
           const intensity = (wave + 1) / 2
 
-          // Audio-reactive colors
-          const hueOffset = dist * 30 * (1 + audioLevel * 2)
-          const hue = (currentHue + hueOffset) % 360
-          const saturation = 60 + (audioLevel * 40)
-          const lightness = 30 + (40 * intensity) + (audioLevel * 30)
-          const alpha = 0.3 + (0.7 * intensity) + (audioLevel * 0.2)
-
-          ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`
+          const color = getColorFromPalette(intensity, audioLevel, dist)
+          ctx.fillStyle = color
           ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize - 1, pixelSize - 1)
         }
       }
@@ -316,7 +401,6 @@
       draw()
     }
 
-    // Handle mouse/touch interaction
     function handlePointerDown(event) {
       if (event.target === canvas) {
         const rect = canvas.getBoundingClientRect()
@@ -326,19 +410,18 @@
       }
     }
 
-    // Event listeners
     window.addEventListener('resize', restart)
     speedInput.addEventListener('input', () => {
       currentWave = 0
     })
     sizeInput.addEventListener('input', restart)
+    paletteSelect.addEventListener('change', restart)
     canvas.addEventListener('mousedown', handlePointerDown)
     canvas.addEventListener('touchstart', (e) => {
       e.preventDefault()
       handlePointerDown(e.touches[0])
     })
 
-    // Initial setup
     restart()
   </script>
 </body>
