@@ -2,7 +2,7 @@
 
 Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
-[Pixel Wave](https://lab.simonwisdom.com/pixel-wave) - A pixelated hypnotic animation
+## Tools
 
 [LLM Web Parser](https://lab.simonwisdom.com/llm-web-parse) - Analyze a list of URLs with an LLM
 
@@ -12,11 +12,17 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
  
 [LLM Widget](https://lab.simonwisdom.com/llm-widget) - A static widget to message multiple LLM providers 
 
+[Book Chunker](https://lab.simonwisdom.com/book-chunks) - Split and summarize long texts using Claude. BYO Anthropic API key (not stored).
+
+## Fun
+
+[Pixel Wave v2](https://lab.simonwisdom.com/pixel-wave-audioreactive) - An audioreactive version
+
+[Pixel Wave](https://lab.simonwisdom.com/pixel-wave) - A pixelated hypnotic animation
+
 [Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory - a game inspired by [Universal Paperclips](https://www.decisionproblem.com/paperclips/index2.html) [WIP]
 
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
-
-[Book Chunker](https://lab.simonwisdom.com/book-chunks) - Split and summarize long texts using Claude. BYO Anthropic API key (not stored).
 
 <footer>
 Inspired by <a href="https://tools.simonwillison.net">Simon Willison's tools page.</a>

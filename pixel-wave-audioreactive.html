@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <script src="js/common.js"></script>
+  <title>Interactive Audio Reactive Wave</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #toggleButton {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.5);
+      border: none;
+      border-radius: 4px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      z-index: 101;
+    }
+
+    #toggleButton:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    #controls {
+      position: fixed;
+      top: 4rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 1rem;
+      border-radius: 8px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #controls.hidden {
+      transform: translateX(calc(100% + 1rem));
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #controls label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.9rem;
+    }
+
+    #controls input[type="range"] {
+      width: 200px;
+      margin-top: 0.25rem;
+    }
+
+    .footer-content {
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    footer {
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    footer p {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    footer a {
+      color: white;
+    }
+
+    footer a:hover {
+      color: white;
+    }
+
+    footer img {
+      filter: brightness(0) invert(1);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <button id="toggleButton">⚙</button>
+  <div id="controls" class="hidden">
+    <label>
+      Base Speed
+      <input type="range" id="speed" min="0.2" max="3" value="1" step="0.2">
+    </label>
+    <label>
+      Pixel Size
+      <input type="range" id="size" min="10" max="100" value="40">
+    </label>
+    <label>
+      Audio Sensitivity
+      <input type="range" id="sensitivity" min="1" max="5" value="2" step="0.1">
+    </label>
+    <div class="footer-content"></div>
+  </div>
+
+  <script type="module">
+    // Wait for footer to be created then move it
+    const moveFooter = () => {
+      const footer = document.querySelector('footer')
+      const footerContent = document.querySelector('.footer-content')
+      if (footer && footerContent) {
+        footerContent.appendChild(footer)
+      }
+    }
+
+    moveFooter()
+    setTimeout(moveFooter, 100)
+
+    const canvas = document.getElementById('canvas')
+    const ctx = canvas.getContext('2d')
+    const speedInput = document.getElementById('speed')
+    const sizeInput = document.getElementById('size')
+    const sensitivityInput = document.getElementById('sensitivity')
+    const toggleButton = document.getElementById('toggleButton')
+    const controls = document.getElementById('controls')
+
+    // Toggle controls visibility
+    toggleButton.addEventListener('click', (e) => {
+      e.stopPropagation() // Prevent canvas click
+      controls.classList.toggle('hidden')
+    })
+
+    // Hide controls when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!controls.contains(e.target) && e.target !== toggleButton) {
+        controls.classList.add('hidden')
+      }
+    })
+
+    let pixelSize = parseInt(sizeInput.value)
+    let currentWave = 0
+    let currentHue = 0
+    let animationId = null
+    let audioContext, analyser, dataArray
+    let isAudioInitialized = false
+    let lastAudioLevel = 0
+    let smoothedAudioLevel = 0
+    
+    // Center point animation
+    let centerX = window.innerWidth / 2
+    let centerY = window.innerHeight / 2
+    let targetX = centerX
+    let targetY = centerY
+    
+    const TWO_PI = Math.PI * 2
+    let cols, rows, distances
+
+    // Auto-initialize audio when document is loaded
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)()
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const source = audioContext.createMediaStreamSource(stream)
+        analyser = audioContext.createAnalyser()
+        
+        analyser.fftSize = 256
+        const bufferLength = analyser.frequencyBinCount
+        dataArray = new Uint8Array(bufferLength)
+        
+        source.connect(analyser)
+        isAudioInitialized = true
+      } catch (err) {
+        console.error('Error accessing microphone:', err)
+      }
+    })
+
+    function calculateDistances() {
+      distances = new Float32Array(cols * rows)
+      const maxDist = Math.sqrt(Math.pow(canvas.width, 2) + Math.pow(canvas.height, 2))
+      
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const pixelX = x * pixelSize + pixelSize / 2
+          const pixelY = y * pixelSize + pixelSize / 2
+          const dx = pixelX - centerX
+          const dy = pixelY - centerY
+          const dist = Math.sqrt(dx * dx + dy * dy) / maxDist
+          distances[y * cols + x] = dist
+        }
+      }
+    }
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1
+      const rect = canvas.getBoundingClientRect()
+      
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      
+      ctx.scale(dpr, dpr)
+      
+      cols = Math.ceil(rect.width / pixelSize)
+      rows = Math.ceil(rect.height / pixelSize)
+      
+      // Update center positions on resize
+      if (targetX === undefined) {
+        targetX = rect.width / 2
+        centerX = targetX
+      }
+      if (targetY === undefined) {
+        targetY = rect.height / 2
+        centerY = targetY
+      }
+      
+      calculateDistances()
+    }
+
+    function getAudioData() {
+      if (!isAudioInitialized) return 0
+      
+      analyser.getByteFrequencyData(dataArray)
+      
+      // Get average of frequencies
+      const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length
+      const normalizedLevel = average / 255 // Normalize to 0-1
+      
+      // Smooth the audio level
+      smoothedAudioLevel = smoothedAudioLevel * 0.8 + normalizedLevel * 0.2
+      lastAudioLevel = normalizedLevel
+      
+      return smoothedAudioLevel
+    }
+
+    function updateCenter() {
+      // Smooth center point movement
+      const easing = 0.1
+      centerX += (targetX - centerX) * easing
+      centerY += (targetY - centerY) * easing
+      
+      // Recalculate distances if center has moved significantly
+      if (Math.abs(centerX - targetX) > 0.1 || Math.abs(centerY - targetY) > 0.1) {
+        calculateDistances()
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      updateCenter()
+      
+      const baseSpeed = parseFloat(speedInput.value)
+      const sensitivity = parseFloat(sensitivityInput.value)
+      const audioLevel = getAudioData() * sensitivity
+      
+      // Make the wave progress based on audio level
+      currentWave += (0.02 + audioLevel * 0.1) * baseSpeed
+      currentHue = (currentHue + audioLevel * 2) % 360
+
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const dist = distances[y * cols + x]
+          
+          // Create wave pattern that moves outward from center
+          const wave = Math.sin(dist * 10 - currentWave + audioLevel * 5)
+          const intensity = (wave + 1) / 2
+
+          // Audio-reactive colors
+          const hueOffset = dist * 30 * (1 + audioLevel * 2)
+          const hue = (currentHue + hueOffset) % 360
+          const saturation = 60 + (audioLevel * 40)
+          const lightness = 30 + (40 * intensity) + (audioLevel * 30)
+          const alpha = 0.3 + (0.7 * intensity) + (audioLevel * 0.2)
+
+          ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`
+          ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize - 1, pixelSize - 1)
+        }
+      }
+
+      animationId = requestAnimationFrame(draw)
+    }
+
+    function restart() {
+      if (animationId) cancelAnimationFrame(animationId)
+      pixelSize = parseInt(sizeInput.value)
+      resizeCanvas()
+      draw()
+    }
+
+    // Handle mouse/touch interaction
+    function handlePointerDown(event) {
+      if (event.target === canvas) {
+        const rect = canvas.getBoundingClientRect()
+        const scale = canvas.width / rect.width
+        targetX = (event.clientX - rect.left) * scale
+        targetY = (event.clientY - rect.top) * scale
+      }
+    }
+
+    // Event listeners
+    window.addEventListener('resize', restart)
+    speedInput.addEventListener('input', () => {
+      currentWave = 0
+    })
+    sizeInput.addEventListener('input', restart)
+    canvas.addEventListener('mousedown', handlePointerDown)
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault()
+      handlePointerDown(e.touches[0])
+    })
+
+    // Initial setup
+    restart()
+  </script>
+</body>
+</html>
