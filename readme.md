@@ -4,7 +4,9 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Tools
 
-[Bulk Add Members to Github Org](https://lab.simonwisdom.com/llm-web-parse) - Add a list of email addresses to a Github org
+[Download Github Repo](https://lab.simonwisdom.com/github-repo-to-text) - Download an entire repo as a text file
+
+[Bulk Add Members to Github Org](https://lab.simonwisdom.com/github-org-invites) - Add a list of email addresses to a Github org
 
 [LLM Web Parser](https://lab.simonwisdom.com/llm-web-parse) - Analyze a list of URLs with an LLM
 

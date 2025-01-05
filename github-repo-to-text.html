@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Repository Downloader</title>
+  <script src="js/common.js"></script>
+  <style>
+    .tree-container {
+      font-family: monospace;
+      white-space: pre;
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid rgba(22, 163, 74, 0.15);
+      margin: 1rem 0;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .download-section {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: #666;
+    }
+
+    .loading::after {
+      content: '';
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid #16A34A;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+    }
+
+    .token-section {
+      display: none;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(22, 163, 74, 0.15);
+    }
+
+    .token-section.show {
+      display: block;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GitHub Repository Downloader</h1>
+    <p>Download an entire GitHub repository as a text file</p>
+    
+    <div class="card">
+      <form id="repoForm">
+        <input 
+          type="url" 
+          id="repoUrl" 
+          class="form-control"
+          placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
+          required
+        >
+        <button type="submit" class="btn btn-primary">Analyze Repository</button        >
+        <div class="token-section" id="tokenSection">
+          <p class="help-text mb-2">Add a <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">GitHub token</a> to increase rate limits</p>
+          <input 
+            type="password" 
+            id="githubToken" 
+            class="form-control"
+            placeholder="Enter GitHub token"
+          >
+        </div>
+      </form>
+
+      <div class="loading">Analyzing repository...</div>
+      
+      <div id="error" class="error" style="display: none;"></div>
+      
+      <div id="treeOutput" class="tree-container" style="display: none;"></div>
+      
+
+    </div>
+  </div>
+
+  <script type="module">
+const API_BASE = 'https://api.github.com'
+const form = document.getElementById('repoForm')
+const treeOutput = document.getElementById('treeOutput')
+const errorElement = document.getElementById('error')
+const loadingElement = document.querySelector('.loading')
+const tokenSection = document.getElementById('tokenSection')
+const tokenInput = document.getElementById('githubToken')
+
+let repoData = {
+  owner: '',
+  repo: '',
+  tree: [],
+  contents: {},
+  token: ''
+}
+
+function showError(message) {
+  errorElement.textContent = message
+  errorElement.style.display = 'block'
+}
+
+function hideError() {
+  errorElement.style.display = 'none'
+}
+
+function showLoading() {
+  loadingElement.style.display = 'flex'
+  treeOutput.style.display = 'none'
+}
+
+function hideLoading() {
+  loadingElement.style.display = 'none'
+}
+
+function parseGitHubUrl(url) {
+  try {
+    const parsedUrl = new URL(url)
+    const parts = parsedUrl.pathname.split('/')
+    if (parts.length < 3) throw new Error('Invalid GitHub URL')
+    return {
+      owner: parts[1],
+      repo: parts[2]
+    }
+  } catch (error) {
+    throw new Error('Please enter a valid GitHub repository URL')
+  }
+}
+
+async function fetchRepoTree(owner, repo) {
+  const headers = {}
+  if (repoData.token) {
+    headers.Authorization = `Bearer ${repoData.token}`
+  }
+
+  const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/main?recursive=1`, { headers })
+  
+  if (!response.ok) {
+    if (response.status === 403) {
+      tokenSection.classList.add('show')
+      throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+    }
+    if (response.status === 404) {
+      // Try master branch if main doesn't exist
+      const masterResponse = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/master?recursive=1`, { headers })
+      if (!masterResponse.ok) {
+        if (masterResponse.status === 403) {
+          tokenSection.classList.add('show')
+          throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+        }
+        throw new Error('Repository not found or is private')
+      }
+      return masterResponse.json()
+    }
+    throw new Error('Failed to fetch repository data')
+  }
+  return response.json()
+}
+
+async function fetchFileContent(owner, repo, path) {
+  const headers = {}
+  if (repoData.token) {
+    headers.Authorization = `Bearer ${repoData.token}`
+  }
+
+  const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/contents/${path}`, { headers })
+  if (!response.ok) {
+    if (response.status === 403) {
+      tokenSection.classList.add('show')
+      throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+    }
+    throw new Error(`Failed to fetch file: ${path}`)
+  }
+  const data = await response.json()
+  return atob(data.content)
+}
+
+async function displayTreeAndStartDownload(tree) {
+  // Display tree immediately
+  const paths = tree.tree
+    .filter(item => item.type === 'blob')
+    .map(item => item.path)
+    .sort()
+  
+  treeOutput.textContent = paths.join('\n')
+  treeOutput.style.display = 'block'
+  hideLoading()
+
+  // Start download process asynchronously
+  setTimeout(async () => {
+    try {
+      const content = await generateDownloadContent()
+      const blob = new Blob([content], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${repoData.repo}-combined.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      showError('Failed to generate download: ' + error.message)
+    }
+  }, 100) // Small delay to ensure tree is displayed first
+}
+
+async function generateDownloadContent() {
+  const contents = []
+  for (const item of repoData.tree.tree) {
+    if (item.type === 'blob') {
+      try {
+        const content = await fetchFileContent(repoData.owner, repoData.repo, item.path)
+        contents.push(`// ${item.path}\n${content}\n\n`)
+      } catch (error) {
+        console.error(`Failed to fetch ${item.path}:`, error)
+      }
+    }
+  }
+  return contents.join('\n')
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  hideError()
+  showLoading()
+
+  const url = document.getElementById('repoUrl').value
+  repoData.token = tokenInput.value // Save token if provided
+
+  try {
+    const { owner, repo } = parseGitHubUrl(url)
+    repoData.owner = owner
+    repoData.repo = repo
+    
+    repoData.tree = await fetchRepoTree(owner, repo)
+    await displayTreeAndStartDownload(repoData.tree)
+  } catch (error) {
+    showError(error.message)
+  } finally {
+    hideLoading()
+  }
+})
+
+
+  </script>
+</body>
+</html>
