@@ -52,7 +52,7 @@ export function addFeedbackSystem() {
       }
     `;
     document.head.appendChild(styles);
-  
+
     // Add modal HTML
     const modalHtml = `
       <div class="modal-overlay"></div>
@@ -66,12 +66,12 @@ export function addFeedbackSystem() {
       </div>
     `;
     document.body.insertAdjacentHTML('beforeend', modalHtml);
-  
+
     // Add button to footer
     const footerLink = document.querySelector('footer p');
     const feedbackBtn = document.createElement('button');
-feedbackBtn.className = 'text-gray-400 hover:text-gray-600 transition-colors';
-feedbackBtn.style.cssText = `
+    feedbackBtn.className = 'text-gray-400 hover:text-gray-600 transition-colors';
+    feedbackBtn.style.cssText = `
   background: none;
   padding: 0;
   width: 16px;
@@ -82,10 +82,10 @@ feedbackBtn.style.cssText = `
   align-items: center;
   justify-content: center;
 `;
-feedbackBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2 .5 3M9 18h6M10 22h4"/></svg>';
+    feedbackBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2 .5 3M9 18h6M10 22h4"/></svg>';
 
     footerLink.appendChild(feedbackBtn);
-  
+
     // Setup handlers
     const modal = document.querySelector('.feedback-modal');
     const overlay = document.querySelector('.modal-overlay');
@@ -94,70 +94,70 @@ feedbackBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="n
     const emailInput = modal.querySelector('input[type="email"]');
     const submitBtn = modal.querySelector('.btn');
     const status = modal.querySelector('.status');
-  
+
     function showModal() {
-      modal.classList.add('active');
-      overlay.classList.add('active');
-      textarea.focus();
-      t('feedback_modal_opened', { page: window.location.pathname });
+        modal.classList.add('active');
+        overlay.classList.add('active');
+        textarea.focus();
+        t('feedback_modal_opened', { page: window.location.pathname });
     }
-  
+
     function hideModal() {
-      modal.classList.remove('active');
-      overlay.classList.remove('active');
-      textarea.value = '';
-      emailInput.value = '';
-      status.textContent = '';
+        modal.classList.remove('active');
+        overlay.classList.remove('active');
+        textarea.value = '';
+        emailInput.value = '';
+        status.textContent = '';
     }
-  
+
     async function submitFeedback() {
-      const text = textarea.value.trim();
-      if (!text) return;
-  
-      submitBtn.disabled = true;
-      status.textContent = 'Sending...';
-  
-      try {
-        const response = await fetch('/api/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: `Feedback: ${document.title}`,
-            body: [
-              `Feedback: ${text}`,
-              `Email: ${emailInput.value || 'Not provided'}`,
-              `Page: ${window.location.href}`,
-              `User Agent: ${navigator.userAgent}`,
-              `Time: ${new Date().toISOString()}`
-            ].join('\n'),
-            labels: ['feedback']
-          })
-        });
-  
-        if (!response.ok) throw new Error('Failed to send feedback');
-  
-        t('feedback_submitted', {
-          has_email: Boolean(emailInput.value),
-          feedback_length: text.length
-        });
-  
-        status.textContent = 'Thanks for your feedback!';
-        setTimeout(hideModal, 2000);
-      } catch (error) {
-        status.textContent = 'Error sending feedback. Please try again.';
-        submitBtn.disabled = false;
-      }
+        const text = textarea.value.trim();
+        if (!text) return;
+
+        submitBtn.disabled = true;
+        status.textContent = 'Sending...';
+
+        try {
+            const response = await fetch('https://lab-proxy.vercel.app/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: `Feedback: ${document.title}`,
+                    body: [
+                        `Feedback: ${text}`,
+                        `Email: ${emailInput.value || 'Not provided'}`,
+                        `Page: ${window.location.href}`,
+                        `User Agent: ${navigator.userAgent}`,
+                        `Time: ${new Date().toISOString()}`
+                    ].join('\n'),
+                    labels: ['feedback']
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to send feedback');
+
+            t('feedback_submitted', {
+                has_email: Boolean(emailInput.value),
+                feedback_length: text.length
+            });
+
+            status.textContent = 'Thanks for your feedback!';
+            setTimeout(hideModal, 2000);
+        } catch (error) {
+            status.textContent = 'Error sending feedback. Please try again.';
+            submitBtn.disabled = false;
+        }
     }
-  
+
     feedbackBtn.addEventListener('click', showModal);
     closeBtn.addEventListener('click', hideModal);
     overlay.addEventListener('click', hideModal);
     submitBtn.addEventListener('click', submitFeedback);
-  
+
     // Close on escape key
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal.classList.contains('active')) {
-        hideModal();
-      }
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            hideModal();
+        }
     });
-  }
+}
