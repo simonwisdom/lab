@@ -33,13 +33,6 @@ function addTracking() {
   window.t = track;
 }
 
-function addStylesheet() {
-  const stylesheet = document.createElement('link');
-  stylesheet.rel = "stylesheet";
-  stylesheet.href = "style.css";
-  document.head.appendChild(stylesheet);
-}
-
 function addFooter() {
   const footer = document.createElement('footer');
   footer.innerHTML = `
