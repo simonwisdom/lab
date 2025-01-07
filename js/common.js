@@ -125,7 +125,6 @@ function addTwitterCardTags() {
   addAnalytics();
   initializeGlobalWaitForUmami();
   addTracking();
-  addStylesheet();
   addFooter();
   addMetadata();
   addOpenGraphTags();
