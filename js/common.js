@@ -8,6 +8,16 @@
     document.head.appendChild(script);
   })();
 
+  (function waitForUmami() {
+    window.waitForUmami = function(callback, retries = 20) {
+      if (window.umami) {
+        callback();
+      } else if (retries > 0) {
+        setTimeout(() => waitForUmami(callback, retries - 1), 100);
+      }
+    };
+  })();
+
   (function addTracking() {
     const track = (eventName, properties = {}) => {
       waitForUmami(() => {
