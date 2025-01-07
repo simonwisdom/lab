@@ -11,12 +11,15 @@ export default async function handler(req, res) {
   });
 
   try {
-    await octokit.issues.create({
+    await octokit.request('POST /repos/{owner}/{repo}/issues', {
       owner: 'simonwisdom',
       repo: 'lab',
       title: req.body.title,
       body: req.body.body,
-      labels: req.body.labels
+      labels: req.body.labels,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
     });
     
     res.status(200).json({ success: true });
