@@ -8,6 +8,27 @@
     document.head.appendChild(script);
   })();
 
+  (function addTracking() {
+    const track = (eventName, properties = {}) => {
+      waitForUmami(() => {
+        // Format event name to snake_case
+        const formattedEvent = eventName.toLowerCase().replace(/\s+/g, '_');
+        
+        // Basic enrichment with timestamp and page
+        const data = {
+          timestamp: Date.now(),
+          page: window.location.pathname,
+          ...properties
+        };
+  
+        umami.track(formattedEvent, data);
+      });
+    };
+  
+    // Expose globally
+    window.t = track;
+  })();
+
   // Add stylesheet
   (function addStylesheet() {
     const stylesheet = document.createElement('link');

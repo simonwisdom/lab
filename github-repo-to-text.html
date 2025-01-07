@@ -235,6 +235,9 @@ async function generateDownloadContent() {
 }
 
 form.addEventListener('submit', async (e) => {
+
+  t('form submitted', {url: document.getElementById('repoUrl').value, has_token: !!tokenInput.value});
+  
   e.preventDefault()
   hideError()
   showLoading()
@@ -243,13 +246,18 @@ form.addEventListener('submit', async (e) => {
   repoData.token = tokenInput.value // Save token if provided
 
   try {
+    t('download started', { url });
+
     const { owner, repo } = parseGitHubUrl(url)
     repoData.owner = owner
     repoData.repo = repo
     
     repoData.tree = await fetchRepoTree(owner, repo)
     await displayTreeAndStartDownload(repoData.tree)
+
+    t('download complete', { files: repoData.tree.tree.length });
   } catch (error) {
+    t('download failed', { message: error.message });
     showError(error.message)
   } finally {
     hideLoading()

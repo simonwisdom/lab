@@ -1,1 +1,6 @@
 /wip
+.env.local
+/proxy/server.js
+/proxy/public/
+/proxy/api/gemini-proxy-local.js
+/js/llm-client-local.js
