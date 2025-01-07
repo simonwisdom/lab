@@ -8,6 +8,10 @@
     "api/proxy.js": {
       "memory": 1024,
       "maxDuration": 10
+    },
+    "api/feedback.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
   },
   "routes": [
@@ -20,6 +24,11 @@
       "src": "api/proxy",
       "dest": "/api/proxy.js",
       "methods": ["GET", "POST", "OPTIONS"]
+    },
+    {
+      "src": "api/feedback",
+      "dest": "/api/feedback.js",
+      "methods": ["POST", "OPTIONS"]
     }
   ]
 }
