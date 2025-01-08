@@ -182,9 +182,12 @@ function hideError() {
 
 function showLoading() {
   loadingElement.style.display = 'flex'
-  treeOutput.style.display = 'none'
-  downloadSection.classList.remove('show')
-  selectionControls.classList.remove('show')
+  // Only hide tree during initial load
+  if (!repoData.tree.tree?.length) {
+    treeOutput.style.display = 'none'
+    downloadSection.classList.remove('show')
+    selectionControls.classList.remove('show')
+  }
 }
 
 function hideLoading() {
@@ -287,15 +290,23 @@ async function generateDownloadContent() {
     .map(checkbox => checkbox.dataset.path)
 
   const contents = []
+  const failedFiles = []
+
   for (const path of selectedFiles) {
     try {
       const content = await fetchFileContent(repoData.owner, repoData.repo, path)
       contents.push(`// ${path}\n${content}\n\n`)
     } catch (error) {
       console.error(`Failed to fetch ${path}:`, error)
-      showError(`Failed to fetch ${path}: ${error.message}`)
+      failedFiles.push(path)
+      // Don't show error immediately, collect all failures
     }
   }
+
+  if (failedFiles.length > 0) {
+    showError(`Failed to fetch the following files:\n${failedFiles.join('\n')}`)
+  }
+
   return contents.join('\n')
 }
 
@@ -340,12 +351,18 @@ downloadBtn.addEventListener('click', async () => {
     return
   }
 
+  hideError() // Clear any previous errors
+  
   t('download_started', { 
     selected_files: selectedFiles,
     total_files: repoData.tree.tree.length
   })
 
-  showLoading()
+  // Show loading state on the button itself
+  const originalText = downloadBtn.textContent
+  downloadBtn.textContent = 'Downloading...'
+  downloadBtn.disabled = true
+
   try {
     const content = await generateDownloadContent()
     const blob = new Blob([content], { type: 'text/plain' })
@@ -366,7 +383,8 @@ downloadBtn.addEventListener('click', async () => {
     t('download_failed', { error: error.message })
     showError('Failed to generate download: ' + error.message)
   } finally {
-    hideLoading()
+    downloadBtn.textContent = originalText
+    downloadBtn.disabled = false
   }
 })
 
