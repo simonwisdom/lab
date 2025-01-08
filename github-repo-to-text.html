@@ -9,7 +9,6 @@
   <style>
     .tree-container {
       font-family: monospace;
-      white-space: pre;
       background: white;
       padding: 1rem;
       border-radius: 8px;
@@ -19,9 +18,44 @@
       overflow-y: auto;
     }
 
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(22, 163, 74, 0.1);
+    }
+
+    .file-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-checkbox {
+      margin-right: 1rem;
+    }
+
+    .file-path {
+      font-family: monospace;
+      flex-grow: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .download-section {
-      margin-top: 2rem;
+      margin-top: 1rem;
       display: none;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .download-section.show {
+      display: flex;
     }
 
     .loading {
@@ -50,6 +84,16 @@
 
     .token-section.show {
       display: block;
+    }
+
+    .selection-controls {
+      margin: 1rem 0;
+      display: none;
+    }
+
+    .selection-controls.show {
+      display: flex;
+      gap: 1rem;
     }
 
     @keyframes spin {
@@ -87,9 +131,19 @@
       
       <div id="error" class="error" style="display: none;"></div>
       
-      <div id="treeOutput" class="tree-container" style="display: none;"></div>
-      
+      <div class="selection-controls" id="selectionControls">
+        <button class="btn btn-secondary" id="selectAll">Select All</button>
+        <button class="btn btn-secondary" id="deselectAll">Deselect All</button>
+      </div>
 
+      <div id="treeOutput" class="tree-container" style="display: none;">
+        <ul class="file-list" id="fileList"></ul>
+      </div>
+
+      <div class="download-section" id="downloadSection">
+        <button class="btn btn-primary" id="downloadBtn">Download Selected Files</button>
+        <span class="help-text">Selected: <span id="selectedCount">0</span> files</span>
+      </div>
     </div>
   </div>
 
@@ -97,10 +151,17 @@
 const API_BASE = 'https://api.github.com'
 const form = document.getElementById('repoForm')
 const treeOutput = document.getElementById('treeOutput')
+const fileList = document.getElementById('fileList')
 const errorElement = document.getElementById('error')
 const loadingElement = document.querySelector('.loading')
 const tokenSection = document.getElementById('tokenSection')
 const tokenInput = document.getElementById('githubToken')
+const downloadSection = document.getElementById('downloadSection')
+const downloadBtn = document.getElementById('downloadBtn')
+const selectedCountElement = document.getElementById('selectedCount')
+const selectionControls = document.getElementById('selectionControls')
+const selectAllBtn = document.getElementById('selectAll')
+const deselectAllBtn = document.getElementById('deselectAll')
 
 let repoData = {
   owner: '',
@@ -122,10 +183,17 @@ function hideError() {
 function showLoading() {
   loadingElement.style.display = 'flex'
   treeOutput.style.display = 'none'
+  downloadSection.classList.remove('show')
+  selectionControls.classList.remove('show')
 }
 
 function hideLoading() {
   loadingElement.style.display = 'none'
+}
+
+function updateSelectedCount() {
+  const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
+  selectedCountElement.textContent = selectedFiles
 }
 
 function parseGitHubUrl(url) {
@@ -156,7 +224,6 @@ async function fetchRepoTree(owner, repo) {
       throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
     }
     if (response.status === 404) {
-      // Try master branch if main doesn't exist
       const masterResponse = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/master?recursive=1`, { headers })
       if (!masterResponse.ok) {
         if (masterResponse.status === 403) {
@@ -190,82 +257,134 @@ async function fetchFileContent(owner, repo, path) {
   return atob(data.content)
 }
 
-async function displayTreeAndStartDownload(tree) {
-  // Display tree immediately
-  const paths = tree.tree
+function displayTree(tree) {
+  const files = tree.tree
     .filter(item => item.type === 'blob')
-    .map(item => item.path)
-    .sort()
-  
-  treeOutput.textContent = paths.join('\n')
-  treeOutput.style.display = 'block'
-  hideLoading()
+    .sort((a, b) => a.path.localeCompare(b.path))
 
-  // Start download process asynchronously
-  setTimeout(async () => {
-    try {
-      const content = await generateDownloadContent()
-      const blob = new Blob([content], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${repoData.repo}-combined.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      showError('Failed to generate download: ' + error.message)
-    }
-  }, 100) // Small delay to ensure tree is displayed first
+  fileList.innerHTML = files
+    .map(file => `
+      <li class="file-item">
+        <input type="checkbox" class="file-checkbox" data-path="${file.path}" checked>
+        <span class="file-path">${file.path}</span>
+      </li>
+    `)
+    .join('')
+
+  treeOutput.style.display = 'block'
+  downloadSection.classList.add('show')
+  selectionControls.classList.add('show')
+  updateSelectedCount()
+
+  // Add event listeners for checkboxes
+  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateSelectedCount)
+  })
 }
 
 async function generateDownloadContent() {
+  const selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked'))
+    .map(checkbox => checkbox.dataset.path)
+
   const contents = []
-  for (const item of repoData.tree.tree) {
-    if (item.type === 'blob') {
-      try {
-        const content = await fetchFileContent(repoData.owner, repoData.repo, item.path)
-        contents.push(`// ${item.path}\n${content}\n\n`)
-      } catch (error) {
-        console.error(`Failed to fetch ${item.path}:`, error)
-      }
+  for (const path of selectedFiles) {
+    try {
+      const content = await fetchFileContent(repoData.owner, repoData.repo, path)
+      contents.push(`// ${path}\n${content}\n\n`)
+    } catch (error) {
+      console.error(`Failed to fetch ${path}:`, error)
+      showError(`Failed to fetch ${path}: ${error.message}`)
     }
   }
   return contents.join('\n')
 }
 
 form.addEventListener('submit', async (e) => {
-
-  t('form submitted', {url: document.getElementById('repoUrl').value, has_token: !!tokenInput.value});
+  t('form_submitted', {
+    url: document.getElementById('repoUrl').value,
+    has_token: !!tokenInput.value
+  })
   
   e.preventDefault()
   hideError()
   showLoading()
 
   const url = document.getElementById('repoUrl').value
-  repoData.token = tokenInput.value // Save token if provided
+  repoData.token = tokenInput.value
 
   try {
-    t('download started', { url });
-
     const { owner, repo } = parseGitHubUrl(url)
     repoData.owner = owner
     repoData.repo = repo
     
     repoData.tree = await fetchRepoTree(owner, repo)
-    await displayTreeAndStartDownload(repoData.tree)
+    displayTree(repoData.tree)
 
-    t('download complete', { files: repoData.tree.tree.length });
+    t('repo_analyzed', {
+      files: repoData.tree.tree.length,
+      owner,
+      repo
+    })
   } catch (error) {
-    t('download failed', { message: error.message });
+    t('analysis_failed', { error: error.message })
     showError(error.message)
   } finally {
     hideLoading()
   }
 })
 
+downloadBtn.addEventListener('click', async () => {
+  const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
+  if (selectedFiles === 0) {
+    showError('Please select at least one file to download')
+    return
+  }
 
+  t('download_started', { 
+    selected_files: selectedFiles,
+    total_files: repoData.tree.tree.length
+  })
+
+  showLoading()
+  try {
+    const content = await generateDownloadContent()
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${repoData.repo}-combined.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    t('download_complete', { 
+      files: selectedFiles,
+      size: blob.size
+    })
+  } catch (error) {
+    t('download_failed', { error: error.message })
+    showError('Failed to generate download: ' + error.message)
+  } finally {
+    hideLoading()
+  }
+})
+
+selectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+    checkbox.checked = true
+  })
+  updateSelectedCount()
+  t('select_all_clicked', { total_files: repoData.tree.tree.length })
+})
+
+deselectAllBtn.addEventListener('click', () => {
+  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+    checkbox.checked = false
+  })
+  updateSelectedCount()
+  t('deselect_all_clicked')
+})
   </script>
 </body>
 </html>
