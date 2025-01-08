@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Spread</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/common.js"></script>
+  <style>
+  .grid-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a1a;
+    touch-action: none;
+  }
+
+  .grid {
+    display: grid;
+    gap: 1px;
+    background: #000;
+    padding: 1px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    user-select: none;
+  }
+
+  .cell {
+    width: 12px;
+    height: 12px;
+    transition: background-color 0.15s ease;
+    cursor: crosshair;
+  }
+  </style>
+</head>
+<body>
+  <div class="grid-container">
+    <div class="grid" id="ocean"></div>
+  </div>
+
+  <script type="module">
+  const GRID_SIZE = 50;
+  const BASE_COLOR = [30, 30, 30];
+  const BRUSH_SIZE = 2;
+  
+  let grid = [];
+  let nextGrid = [];
+  let isDrawing = false;
+  let currentColor = null;
+  let lastPaintedCell = null;
+  
+  function getRandomColor() {
+    const hue = Math.random() * 360;
+    return hslToRgb(hue, 80, 60);
+  }
+
+  function hslToRgb(h, s, l) {
+    h /= 360;
+    s /= 100;
+    l /= 100;
+    let r, g, b;
+
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  }
+
+  function createGrid() {
+    const container = document.getElementById('ocean');
+    container.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 12px)`;
+
+    container.addEventListener('mousedown', startDrawing);
+    container.addEventListener('mousemove', draw);
+    container.addEventListener('mouseup', stopDrawing);
+    container.addEventListener('mouseleave', stopDrawing);
+    container.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startDrawing(e.touches[0]);
+    });
+    container.addEventListener('touchmove', e => {
+      e.preventDefault();
+      draw(e.touches[0]);
+    });
+    container.addEventListener('touchend', stopDrawing);
+
+    for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      container.appendChild(cell);
+    }
+
+    // Initialize both grids
+    for (let i = 0; i < GRID_SIZE; i++) {
+      grid[i] = [];
+      nextGrid[i] = [];
+      for (let j = 0; j < GRID_SIZE; j++) {
+        grid[i][j] = {
+          color: [...BASE_COLOR],
+          changed: false,
+          lastUpdate: 0
+        };
+        nextGrid[i][j] = {
+          color: [...BASE_COLOR],
+          changed: false,
+          lastUpdate: 0
+        };
+      }
+    }
+  }
+
+  function startDrawing(e) {
+    isDrawing = true;
+    currentColor = getRandomColor();
+    const cell = getCellFromEvent(e);
+    if (cell) {
+      paintCell(cell.row, cell.col);
+      lastPaintedCell = cell;
+    }
+  }
+
+  function draw(e) {
+    if (!isDrawing) return;
+    
+    const cell = getCellFromEvent(e);
+    if (cell && (!lastPaintedCell || 
+        cell.row !== lastPaintedCell.row || 
+        cell.col !== lastPaintedCell.col)) {
+      
+      if (lastPaintedCell) {
+        const dx = cell.row - lastPaintedCell.row;
+        const dy = cell.col - lastPaintedCell.col;
+        const steps = Math.max(Math.abs(dx), Math.abs(dy));
+        
+        for (let i = 0; i <= steps; i++) {
+          const row = Math.round(lastPaintedCell.row + (dx * i / steps));
+          const col = Math.round(lastPaintedCell.col + (dy * i / steps));
+          paintCell(row, col);
+        }
+      } else {
+        paintCell(cell.row, cell.col);
+      }
+      
+      lastPaintedCell = cell;
+    }
+  }
+
+  function stopDrawing() {
+    isDrawing = false;
+    lastPaintedCell = null;
+  }
+
+  function getCellFromEvent(e) {
+    const rect = e.target.closest('.grid').getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const col = Math.floor(x / 13);
+    const row = Math.floor(y / 13);
+    
+    if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+      return { row, col };
+    }
+    return null;
+  }
+
+  function blendColors(color1, color2, ratio = 0.5) {
+    return color1.map((c, i) => Math.round(c * ratio + color2[i] * (1 - ratio)));
+  }
+
+  function areDifferentColors(color1, color2, threshold = 5) {
+    return color1.some((c, i) => Math.abs(c - color2[i]) > threshold);
+  }
+
+  function paintCell(row, col) {
+    // Paint brush area
+    for (let dx = -BRUSH_SIZE; dx <= BRUSH_SIZE; dx++) {
+      for (let dy = -BRUSH_SIZE; dy <= BRUSH_SIZE; dy++) {
+        const newRow = (row + dx + GRID_SIZE) % GRID_SIZE;
+        const newCol = (col + dy + GRID_SIZE) % GRID_SIZE;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= BRUSH_SIZE) {
+          grid[newRow][newCol].color = [...currentColor];
+          grid[newRow][newCol].changed = true;
+          grid[newRow][newCol].lastUpdate = Date.now();
+        }
+      }
+    }
+  }
+
+  function updateCell(row, col) {
+    const cell = grid[row][col];
+    const neighbors = [
+      [-1, 0], [1, 0], [0, -1], [0, 1]
+    ];
+    
+    let neighborColors = [];
+    
+    // Collect colors from neighbors
+    neighbors.forEach(([dx, dy]) => {
+      const newRow = (row + dx + GRID_SIZE) % GRID_SIZE;
+      const newCol = (col + dy + GRID_SIZE) % GRID_SIZE;
+      const neighbor = grid[newRow][newCol];
+      
+      // Only consider neighbors that are different from base and current color
+      if (areDifferentColors(neighbor.color, BASE_COLOR) && 
+          areDifferentColors(neighbor.color, cell.color)) {
+        neighborColors.push(neighbor.color);
+      }
+    });
+    
+    // If we have neighbors with different colors, blend with them
+    if (neighborColors.length > 0) {
+      // Average all neighbor colors
+      const avgColor = neighborColors.reduce((acc, curr) => 
+        acc.map((channel, i) => channel + curr[i] / neighborColors.length),
+        [0, 0, 0]
+      );
+      
+      // Blend with current color
+      nextGrid[row][col].color = blendColors(cell.color, avgColor);
+      nextGrid[row][col].changed = true;
+      nextGrid[row][col].lastUpdate = Date.now();
+    } else {
+      // Keep current color
+      nextGrid[row][col].color = [...cell.color];
+      nextGrid[row][col].changed = false;
+      nextGrid[row][col].lastUpdate = cell.lastUpdate;
+    }
+  }
+
+  function updateDisplay() {
+    const cells = document.querySelectorAll('.cell');
+    
+    for (let i = 0; i < GRID_SIZE; i++) {
+      for (let j = 0; j < GRID_SIZE; j++) {
+        const index = i * GRID_SIZE + j;
+        const [r, g, b] = grid[i][j].color;
+        cells[index].style.backgroundColor = `rgb(${r},${g},${b})`;
+      }
+    }
+  }
+
+  function update() {
+    for (let i = 0; i < GRID_SIZE; i++) {
+      for (let j = 0; j < GRID_SIZE; j++) {
+        updateCell(i, j);
+      }
+    }
+
+    // Swap grids
+    [grid, nextGrid] = [nextGrid, grid];
+    updateDisplay();
+    requestAnimationFrame(update);
+  }
+
+  createGrid();
+  update();
+  </script>
+</body>
+</html>
