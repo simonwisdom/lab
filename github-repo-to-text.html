@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -47,6 +48,22 @@
       text-overflow: ellipsis;
     }
 
+    .selection-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin: 1rem 0;
+      display: none;
+    }
+
+    .selection-header.show {
+      display: flex;
+    }
+
+    .filetype-select {
+      min-width: 200px;
+    }
+
     .download-section {
       margin-top: 1rem;
       display: none;
@@ -87,7 +104,6 @@
     }
 
     .selection-controls {
-      margin: 1rem 0;
       display: none;
     }
 
@@ -96,44 +112,57 @@
       gap: 1rem;
     }
 
+    .selection-header {
+      display: none;
+      align-items: center;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .selection-header.show {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>GitHub Repository Downloader</h1>
-    <p>Download an entire GitHub repository as a text file. Large repositories may take a while to download, please be patient.</p>
-    
+    <p>Download an entire GitHub repository, or just selected files, as a text file. Large repositories may take a while to download, please be
+      patient.</p>
+
     <div class="card">
       <form id="repoForm">
-        <input 
-          type="url" 
-          id="repoUrl" 
-          class="form-control"
-          placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)"
-          required
-        >
+        <input type="url" id="repoUrl" class="form-control"
+          placeholder="Enter GitHub repository URL (e.g., https://github.com/username/repo)" required>
         <button type="submit" class="btn btn-primary">Analyze Repository</button>
         <div class="token-section" id="tokenSection">
-          <p class="help-text mb-2">Add a <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer">GitHub token</a> to increase rate limits</p>
-          <input 
-            type="password" 
-            id="githubToken" 
-            class="form-control"
-            placeholder="Enter GitHub token"
-          >
+          <p class="help-text mb-2">Add a <a href="https://github.com/settings/tokens/new" target="_blank"
+              rel="noopener noreferrer">GitHub token</a> to increase rate limits</p>
+          <input type="password" id="githubToken" class="form-control" placeholder="Enter GitHub token">
         </div>
       </form>
 
       <div class="loading">Analyzing repository...</div>
-      
+
       <div id="error" class="error" style="display: none;"></div>
-      
-      <div class="selection-controls" id="selectionControls">
-        <button class="btn btn-secondary" id="selectAll">Select All</button>
-        <button class="btn btn-secondary" id="deselectAll">Deselect All</button>
+
+
+      <div class="selection-header" id="selectionHeader">
+        <select class="form-control filetype-select" id="filetypeSelect">
+          <option value="all">All Files</option>
+        </select>
+        <div class="selection-controls" id="selectionControls">
+          <button class="btn btn-secondary" id="selectAll">Select</button>
+          <button class="btn btn-secondary" id="deselectAll">Deselect</button>
+        </div>
       </div>
 
       <div id="treeOutput" class="tree-container" style="display: none;">
@@ -148,261 +177,325 @@
   </div>
 
   <script type="module">
-const API_BASE = 'https://api.github.com'
-const form = document.getElementById('repoForm')
-const treeOutput = document.getElementById('treeOutput')
-const fileList = document.getElementById('fileList')
-const errorElement = document.getElementById('error')
-const loadingElement = document.querySelector('.loading')
-const tokenSection = document.getElementById('tokenSection')
-const tokenInput = document.getElementById('githubToken')
-const downloadSection = document.getElementById('downloadSection')
-const downloadBtn = document.getElementById('downloadBtn')
-const selectedCountElement = document.getElementById('selectedCount')
-const selectionControls = document.getElementById('selectionControls')
-const selectAllBtn = document.getElementById('selectAll')
-const deselectAllBtn = document.getElementById('deselectAll')
+    const API_BASE = 'https://api.github.com'
+    const form = document.getElementById('repoForm')
+    const treeOutput = document.getElementById('treeOutput')
+    const fileList = document.getElementById('fileList')
+    const errorElement = document.getElementById('error')
+    const loadingElement = document.querySelector('.loading')
+    const tokenSection = document.getElementById('tokenSection')
+    const tokenInput = document.getElementById('githubToken')
+    const downloadSection = document.getElementById('downloadSection')
+    const downloadBtn = document.getElementById('downloadBtn')
+    const selectedCountElement = document.getElementById('selectedCount')
+    const selectionControls = document.getElementById('selectionControls')
+    const selectAllBtn = document.getElementById('selectAll')
+    const deselectAllBtn = document.getElementById('deselectAll')
 
-let repoData = {
-  owner: '',
-  repo: '',
-  tree: [],
-  contents: {},
-  token: ''
-}
-
-function showError(message) {
-  errorElement.textContent = message
-  errorElement.style.display = 'block'
-}
-
-function hideError() {
-  errorElement.style.display = 'none'
-}
-
-function showLoading() {
-  loadingElement.style.display = 'flex'
-  // Only hide tree during initial load
-  if (!repoData.tree.tree?.length) {
-    treeOutput.style.display = 'none'
-    downloadSection.classList.remove('show')
-    selectionControls.classList.remove('show')
-  }
-}
-
-function hideLoading() {
-  loadingElement.style.display = 'none'
-}
-
-function updateSelectedCount() {
-  const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
-  selectedCountElement.textContent = selectedFiles
-}
-
-function parseGitHubUrl(url) {
-  try {
-    const parsedUrl = new URL(url)
-    const parts = parsedUrl.pathname.split('/')
-    if (parts.length < 3) throw new Error('Invalid GitHub URL')
-    return {
-      owner: parts[1],
-      repo: parts[2]
+    let repoData = {
+      owner: '',
+      repo: '',
+      tree: [],
+      contents: {},
+      token: ''
     }
-  } catch (error) {
-    throw new Error('Please enter a valid GitHub repository URL')
-  }
-}
 
-async function fetchRepoTree(owner, repo) {
-  const headers = {}
-  if (repoData.token) {
-    headers.Authorization = `Bearer ${repoData.token}`
-  }
-
-  const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/main?recursive=1`, { headers })
-  
-  if (!response.ok) {
-    if (response.status === 403) {
-      tokenSection.classList.add('show')
-      throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+    function showError(message) {
+      errorElement.textContent = message
+      errorElement.style.display = 'block'
     }
-    if (response.status === 404) {
-      const masterResponse = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/master?recursive=1`, { headers })
-      if (!masterResponse.ok) {
-        if (masterResponse.status === 403) {
+
+    function hideError() {
+      errorElement.style.display = 'none'
+    }
+
+    function showLoading() {
+      loadingElement.style.display = 'flex'
+      // Only hide tree during initial load
+      if (!repoData.tree.tree?.length) {
+        treeOutput.style.display = 'none'
+        downloadSection.classList.remove('show')
+        selectionControls.classList.remove('show')
+      }
+    }
+
+    function hideLoading() {
+      loadingElement.style.display = 'none'
+    }
+
+    function updateSelectedCount() {
+      const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
+      selectedCountElement.textContent = selectedFiles
+    }
+
+    function parseGitHubUrl(url) {
+      try {
+        const parsedUrl = new URL(url)
+        const parts = parsedUrl.pathname.split('/')
+        if (parts.length < 3) throw new Error('Invalid GitHub URL')
+        return {
+          owner: parts[1],
+          repo: parts[2]
+        }
+      } catch (error) {
+        throw new Error('Please enter a valid GitHub repository URL')
+      }
+    }
+
+    async function fetchRepoTree(owner, repo) {
+      const headers = {}
+      if (repoData.token) {
+        headers.Authorization = `Bearer ${repoData.token}`
+      }
+
+      const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/main?recursive=1`, { headers })
+
+      if (!response.ok) {
+        if (response.status === 403) {
           tokenSection.classList.add('show')
           throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
         }
-        throw new Error('Repository not found or is private')
+        if (response.status === 404) {
+          const masterResponse = await fetch(`${API_BASE}/repos/${owner}/${repo}/git/trees/master?recursive=1`, { headers })
+          if (!masterResponse.ok) {
+            if (masterResponse.status === 403) {
+              tokenSection.classList.add('show')
+              throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+            }
+            throw new Error('Repository not found or is private')
+          }
+          return masterResponse.json()
+        }
+        throw new Error('Failed to fetch repository data')
       }
-      return masterResponse.json()
+      return response.json()
     }
-    throw new Error('Failed to fetch repository data')
-  }
-  return response.json()
-}
 
-async function fetchFileContent(owner, repo, path) {
-  const headers = {}
-  if (repoData.token) {
-    headers.Authorization = `Bearer ${repoData.token}`
-  }
+    async function fetchFileContent(owner, repo, path) {
+      const headers = {}
+      if (repoData.token) {
+        headers.Authorization = `Bearer ${repoData.token}`
+      }
 
-  const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/contents/${path}`, { headers })
-  if (!response.ok) {
-    if (response.status === 403) {
-      tokenSection.classList.add('show')
-      throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+      const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/contents/${path}`, { headers })
+      if (!response.ok) {
+        if (response.status === 403) {
+          tokenSection.classList.add('show')
+          throw new Error('Rate limit exceeded. Please add a GitHub token to continue.')
+        }
+        throw new Error(`Failed to fetch file: ${path}`)
+      }
+      const data = await response.json()
+      return atob(data.content)
     }
-    throw new Error(`Failed to fetch file: ${path}`)
-  }
-  const data = await response.json()
-  return atob(data.content)
-}
 
-function displayTree(tree) {
-  const files = tree.tree
-    .filter(item => item.type === 'blob')
-    .sort((a, b) => a.path.localeCompare(b.path))
+    function getFileExtension(path) {
+      const parts = path.split('.')
+      return parts.length > 1 ? '.' + parts.pop().toLowerCase() : 'No extension'
+    }
 
-  fileList.innerHTML = files
-    .map(file => `
+    function updateFiletypeSelect(tree) {
+      const filetypeSelect = document.getElementById('filetypeSelect')
+      const extensions = new Set()
+
+      tree.tree
+        .filter(item => item.type === 'blob')
+        .forEach(file => {
+          extensions.add(getFileExtension(file.path))
+        })
+
+      const sortedExtensions = Array.from(extensions).sort()
+
+      filetypeSelect.innerHTML = '<option value="all">All Files</option>' +
+        sortedExtensions.map(ext =>
+          `<option value="${ext}">${ext}</option>`
+        ).join('')
+
+      t('filetypes_loaded', {
+        unique_filetypes: extensions.size
+      })
+    }
+
+    function displayTree(tree) {
+      const files = tree.tree
+        .filter(item => item.type === 'blob')
+        .sort((a, b) => a.path.localeCompare(b.path))
+
+      fileList.innerHTML = files
+        .map(file => `
       <li class="file-item">
-        <input type="checkbox" class="file-checkbox" data-path="${file.path}" checked>
+        <input type="checkbox" class="file-checkbox" data-path="${file.path}" data-extension="${getFileExtension(file.path)}" checked>
         <span class="file-path">${file.path}</span>
       </li>
     `)
-    .join('')
+        .join('')
 
-  treeOutput.style.display = 'block'
-  downloadSection.classList.add('show')
-  selectionControls.classList.add('show')
-  updateSelectedCount()
+      updateFiletypeSelect(tree)
 
-  // Add event listeners for checkboxes
-  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', updateSelectedCount)
-  })
-}
+      // Show all necessary elements
+      treeOutput.style.display = 'block'
+      downloadSection.classList.add('show')
+      document.getElementById('selectionHeader').classList.add('show')
+      if (selectionControls) {
+        selectionControls.classList.add('show')
+      }
+      updateSelectedCount()
 
-async function generateDownloadContent() {
-  const selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked'))
-    .map(checkbox => checkbox.dataset.path)
-
-  const contents = []
-  const failedFiles = []
-
-  for (const path of selectedFiles) {
-    try {
-      const content = await fetchFileContent(repoData.owner, repoData.repo, path)
-      contents.push(`// ${path}\n${content}\n\n`)
-    } catch (error) {
-      console.error(`Failed to fetch ${path}:`, error)
-      failedFiles.push(path)
-      // Don't show error immediately, collect all failures
+      // Add change listeners to checkboxes
+      document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedCount)
+      })
     }
-  }
 
-  if (failedFiles.length > 0) {
-    showError(`Failed to fetch the following files:\n${failedFiles.join('\n')}`)
-  }
+    // Modify selection buttons event listeners
+    selectAllBtn.addEventListener('click', () => {
+      const selectedType = document.getElementById('filetypeSelect').value
+      const selector = selectedType === 'all'
+        ? '.file-checkbox'
+        : `.file-checkbox[data-extension="${selectedType}"]`
 
-  return contents.join('\n')
-}
+      document.querySelectorAll(selector).forEach(checkbox => {
+        checkbox.checked = true
+      })
 
-form.addEventListener('submit', async (e) => {
-  t('form_submitted', {
-    url: document.getElementById('repoUrl').value,
-    has_token: !!tokenInput.value
-  })
-  
-  e.preventDefault()
-  hideError()
-  showLoading()
-
-  const url = document.getElementById('repoUrl').value
-  repoData.token = tokenInput.value
-
-  try {
-    const { owner, repo } = parseGitHubUrl(url)
-    repoData.owner = owner
-    repoData.repo = repo
-    
-    repoData.tree = await fetchRepoTree(owner, repo)
-    displayTree(repoData.tree)
-
-    t('repo_analyzed', {
-      files: repoData.tree.tree.length,
-      owner,
-      repo
+      updateSelectedCount()
+      t('select_type_clicked', {
+        filetype: selectedType,
+        total_files: document.querySelectorAll(selector).length
+      })
     })
-  } catch (error) {
-    t('analysis_failed', { error: error.message })
-    showError(error.message)
-  } finally {
-    hideLoading()
-  }
-})
 
-downloadBtn.addEventListener('click', async () => {
-  const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
-  if (selectedFiles === 0) {
-    showError('Please select at least one file to download')
-    return
-  }
+    deselectAllBtn.addEventListener('click', () => {
+      const selectedType = document.getElementById('filetypeSelect').value
+      const selector = selectedType === 'all'
+        ? '.file-checkbox'
+        : `.file-checkbox[data-extension="${selectedType}"]`
 
-  hideError() // Clear any previous errors
-  
-  t('download_started', { 
-    selected_files: selectedFiles,
-    total_files: repoData.tree.tree.length
-  })
+      document.querySelectorAll(selector).forEach(checkbox => {
+        checkbox.checked = false
+      })
 
-  // Show loading state on the button itself
-  const originalText = downloadBtn.textContent
-  downloadBtn.textContent = 'Downloading...'
-  downloadBtn.disabled = true
-
-  try {
-    const content = await generateDownloadContent()
-    const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${repoData.repo}-combined.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-
-    t('download_complete', { 
-      files: selectedFiles,
-      size: blob.size
+      updateSelectedCount()
+      t('deselect_type_clicked', {
+        filetype: selectedType,
+        files_affected: document.querySelectorAll(selector).length
+      })
     })
-  } catch (error) {
-    t('download_failed', { error: error.message })
-    showError('Failed to generate download: ' + error.message)
-  } finally {
-    downloadBtn.textContent = originalText
-    downloadBtn.disabled = false
-  }
-})
 
-selectAllBtn.addEventListener('click', () => {
-  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
-    checkbox.checked = true
-  })
-  updateSelectedCount()
-  t('select_all_clicked', { total_files: repoData.tree.tree.length })
-})
+    document.getElementById('filetypeSelect').addEventListener('change', (e) => {
+      t('filetype_changed', {
+        selected_type: e.target.value,
+        files_of_type: document.querySelectorAll(
+          e.target.value === 'all'
+            ? '.file-checkbox'
+            : `.file-checkbox[data-extension="${e.target.value}"]`
+        ).length
+      })
+    })
 
-deselectAllBtn.addEventListener('click', () => {
-  document.querySelectorAll('.file-checkbox').forEach(checkbox => {
-    checkbox.checked = false
-  })
-  updateSelectedCount()
-  t('deselect_all_clicked')
-})
+    async function generateDownloadContent() {
+      const selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked'))
+        .map(checkbox => checkbox.dataset.path)
+
+      const contents = []
+      const failedFiles = []
+
+      for (const path of selectedFiles) {
+        try {
+          const content = await fetchFileContent(repoData.owner, repoData.repo, path)
+          contents.push(`// ${path}\n${content}\n\n`)
+        } catch (error) {
+          console.error(`Failed to fetch ${path}:`, error)
+          failedFiles.push(path)
+          // Don't show error immediately, collect all failures
+        }
+      }
+
+      if (failedFiles.length > 0) {
+        showError(`Failed to fetch the following files:\n${failedFiles.join('\n')}`)
+      }
+
+      return contents.join('\n')
+    }
+
+    form.addEventListener('submit', async (e) => {
+      t('form_submitted', {
+        url: document.getElementById('repoUrl').value,
+        has_token: !!tokenInput.value
+      })
+
+      e.preventDefault()
+      hideError()
+      showLoading()
+
+      const url = document.getElementById('repoUrl').value
+      repoData.token = tokenInput.value
+
+      try {
+        const { owner, repo } = parseGitHubUrl(url)
+        repoData.owner = owner
+        repoData.repo = repo
+
+        repoData.tree = await fetchRepoTree(owner, repo)
+        displayTree(repoData.tree)
+
+        t('repo_analyzed', {
+          files: repoData.tree.tree.length,
+          owner,
+          repo
+        })
+      } catch (error) {
+        t('analysis_failed', { error: error.message })
+        showError(error.message)
+      } finally {
+        hideLoading()
+      }
+    })
+
+    downloadBtn.addEventListener('click', async () => {
+      const selectedFiles = document.querySelectorAll('.file-checkbox:checked').length
+      if (selectedFiles === 0) {
+        showError('Please select at least one file to download')
+        return
+      }
+
+      hideError() // Clear any previous errors
+
+      t('download_started', {
+        selected_files: selectedFiles,
+        total_files: repoData.tree.tree.length
+      })
+
+      // Show loading state on the button itself
+      const originalText = downloadBtn.textContent
+      downloadBtn.textContent = 'Downloading...'
+      downloadBtn.disabled = true
+
+      try {
+        const content = await generateDownloadContent()
+        const blob = new Blob([content], { type: 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${repoData.repo}-combined.txt`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+
+        t('download_complete', {
+          files: selectedFiles,
+          size: blob.size
+        })
+      } catch (error) {
+        t('download_failed', { error: error.message })
+        showError('Failed to generate download: ' + error.message)
+      } finally {
+        downloadBtn.textContent = originalText
+        downloadBtn.disabled = false
+      }
+    })
   </script>
 </body>
+
 </html>
