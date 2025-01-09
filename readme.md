@@ -20,7 +20,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
-[Pain the ocean](https://lab.simonwisdom.com/pixel-wave-audioreactive) - Pixel paint mixing
+[Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
 
 [Pixel Wave v2](https://lab.simonwisdom.com/pixel-wave-audioreactive) - An audioreactive version
 
