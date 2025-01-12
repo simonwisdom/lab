@@ -81,9 +81,26 @@
   </div>
 </div>
   <script type="module">
-// Global state
-let baseUrl = ''
-let sitePathPrefix = '' // Store the path prefix (e.g., '/mkdocs')
+// Config
+const CONFIG = {
+  PROXY_BASE: 'https://lab-proxy.vercel.app/api/proxy?url=',
+  SITEMAP_PATHS: [
+    '/sitemap.xml',
+    '/sitemap_index.xml',
+    '/sitemap/',
+    '/api/sitemap',
+    '/docs/sitemap.xml'
+  ],
+  // Maximum number of pages to crawl if no sitemap found
+  MAX_CRAWL_PAGES: 100
+}
+
+// State
+const state = {
+  baseUrl: '',
+  sitePathPrefix: '', // Store the path prefix (e.g., '/mkdocs')
+  processingQueue: []
+}
 
 // Show status message
 function showStatus(message, isError = false) {
@@ -109,82 +126,171 @@ function updateProgress(processed, total) {
   document.querySelector('.progress-fill').style.width = `${progress}%`
 }
 
-// Fetch and parse sitemap
-async function fetchSitemap(siteUrl) {
-  const sitemapUrl = `${siteUrl.replace(/\/?$/, '/')}/sitemap.xml`
-  console.log('Fetching sitemap from:', sitemapUrl)
-  
-  const response = await fetch(sitemapUrl)
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch sitemap: ${response.status}`)
-  }
-  
-  const text = await response.text()
-  console.log('Raw sitemap XML:', text)
-  
-  const parser = new DOMParser()
-  const xml = parser.parseFromString(text, 'text/xml')
-  
-  // Check for parse errors
-  const parseError = xml.querySelector('parsererror')
-  if (parseError) {
-    throw new Error('Failed to parse sitemap XML: ' + parseError.textContent)
-  }
-  
-  console.log('XML Document:', xml.documentElement.outerHTML)
-  
-  // Handle both namespaced and non-namespaced XML
-  function getElements(tagName) {
-    // Try with namespace
-    let elements = xml.getElementsByTagNameNS('http://www.sitemaps.org/schemas/sitemap/0.9', tagName)
-    console.log(`Found ${elements.length} elements with namespace for tag ${tagName}`)
-    
-    // Fallback to no namespace if needed
-    if (elements.length === 0) {
-      elements = xml.getElementsByTagName(tagName)
-      console.log(`Found ${elements.length} elements without namespace for tag ${tagName}`)
+// Helper function for fetching with fallback
+async function fetchWithFallback(url) {
+  try {
+    // Try direct request first
+    const directResponse = await fetch(url)
+    if (directResponse.ok) {
+      return directResponse
     }
-    return elements
+  } catch (error) {
+    console.log('Direct request failed, trying proxy:', error)
+  }
+
+  // If direct request fails, try proxy
+  const proxiedUrl = CONFIG.PROXY_BASE + encodeURIComponent(url)
+  const proxyResponse = await fetch(proxiedUrl)
+  
+  if (!proxyResponse.ok) {
+    throw new Error(`Failed to fetch: ${proxyResponse.status}`)
   }
   
-  // Get all URL elements
-  const urlElements = getElements('url')
-  console.log('URL elements:', Array.from(urlElements).map(el => el.outerHTML))
+  return proxyResponse
+}
+
+// Fetch and parse sitemap
+// Fetch and parse sitemap with fallback to crawling
+async function fetchSitemap(siteUrl) {
+  // Remove trailing slashes and normalize URL
+  const baseUrl = siteUrl.replace(/\/+$/, '')
   
-  // Extract locations
-  const urls = Array.from(urlElements)
-    .map(url => {
-      const locNS = url.getElementsByTagNameNS('http://www.sitemaps.org/schemas/sitemap/0.9', 'loc')[0]
-      const loc = locNS || url.querySelector('loc')
-      const result = loc ? loc.textContent.trim() : null
-      console.log('Processing URL element:', {
-        urlHTML: url.outerHTML,
-        locElement: loc ? loc.outerHTML : 'not found',
-        extractedURL: result
-      })
-      return result
-    })
-    .filter(url => {
-      if (!url) return false
-      try {
-        const urlObj = new URL(url)
-        const keep = urlObj.hostname.endsWith(baseUrl)
-        console.log('Filtering URL:', url, keep ? '(keeping)' : '(filtering out)')
-        return keep
-      } catch (e) {
-        console.warn('Invalid URL:', url)
-        return false
+  // Try each possible sitemap location
+  for (const path of CONFIG.SITEMAP_PATHS) {
+    const sitemapUrl = `${baseUrl}${path}`
+    console.log('Trying sitemap at:', sitemapUrl)
+    
+    try {
+      const response = await fetchWithFallback(sitemapUrl)
+      const text = await response.text()
+      
+      // Check if it's actually XML and not HTML
+      if (!text.trim().startsWith('<?xml')) {
+        console.log('Response is not XML, skipping:', sitemapUrl)
+        continue
       }
-    })
-  
-  console.log('Final filtered URLs:', urls)
-  
-  if (urls.length === 0) {
-    console.warn('No URLs found in sitemap')
+      
+      const parser = new DOMParser()
+      const xml = parser.parseFromString(text, 'text/xml')
+      
+      // Check for parse errors
+      const parseError = xml.querySelector('parsererror')
+      if (parseError) {
+        console.log('XML parse error, skipping:', sitemapUrl)
+        continue
+      }
+      
+      // Extract URLs from sitemap
+      const urls = new Set()
+      
+      // Handle both namespaced and non-namespaced XML
+      function getElements(tagName) {
+        const elements = [
+          ...xml.getElementsByTagNameNS('http://www.sitemaps.org/schemas/sitemap/0.9', tagName),
+          ...xml.getElementsByTagName(tagName)
+        ]
+        return elements
+      }
+      
+      // Check for sitemap index
+      const sitemaps = getElements('sitemap')
+      if (sitemaps.length > 0) {
+        for (const sitemap of sitemaps) {
+          const loc = sitemap.querySelector('loc')
+          if (loc) {
+            try {
+              const subSitemapUrl = loc.textContent.trim()
+              console.log('Fetching sub-sitemap:', subSitemapUrl)
+              const subUrls = await fetchSitemap(subSitemapUrl)
+              subUrls.forEach(url => urls.add(url))
+            } catch (e) {
+              console.warn('Error fetching sub-sitemap:', e)
+            }
+          }
+        }
+      }
+      
+      // Get URLs from current sitemap
+      const urlElements = getElements('url')
+      for (const url of urlElements) {
+        const loc = url.querySelector('loc')
+        if (loc) {
+          const urlText = loc.textContent.trim()
+          try {
+            const urlObj = new URL(urlText)
+            if (urlObj.hostname.includes(state.baseUrl)) {
+              urls.add(urlText)
+            }
+          } catch (e) {
+            console.warn('Invalid URL in sitemap:', urlText)
+          }
+        }
+      }
+      
+      if (urls.size > 0) {
+        return Array.from(urls)
+      }
+      
+    } catch (error) {
+      console.warn(`Error checking sitemap at ${sitemapUrl}:`, error)
+    }
   }
   
-  return urls
+  // If no sitemap found, fall back to crawling
+  console.log('No sitemap found, falling back to crawling')
+  return crawlSite(baseUrl)
+}
+
+// Fallback crawler function
+async function crawlSite(baseUrl) {
+  const urls = new Set()
+  const queue = [baseUrl]
+  const seen = new Set()
+  
+  while (queue.length > 0 && urls.size < CONFIG.MAX_CRAWL_PAGES) {
+    const url = queue.shift()
+    if (seen.has(url)) continue
+    seen.add(url)
+    
+    try {
+      console.log('Crawling:', url)
+      const response = await fetchWithFallback(url)
+      
+      if (!response.ok) continue
+      
+      const text = await response.text()
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(text, 'text/html')
+      
+      // Add current URL if it's a content page
+      if (url !== baseUrl) {
+        urls.add(url)
+      }
+      
+      // Find all links
+      const links = doc.querySelectorAll('a[href]')
+      for (const link of links) {
+        try {
+          const href = new URL(link.href, url).toString()
+          const urlObj = new URL(href)
+          
+          // Only include URLs from same domain and not already seen
+          if (urlObj.hostname.includes(state.baseUrl) && 
+              !seen.has(href) && 
+              !href.includes('#') && // Skip anchors
+              !/\.(jpg|jpeg|png|gif|css|js)$/i.test(href)) { // Skip assets
+            queue.push(href)
+          }
+        } catch (e) {
+          console.warn('Invalid URL:', link.href)
+        }
+      }
+    } catch (error) {
+      console.warn(`Error crawling ${url}:`, error)
+    }
+  }
+  
+  return Array.from(urls)
 }
 
 // Fetch and process content
@@ -196,7 +302,7 @@ async function fetchContent(url) {
     if (urlObj.hostname.startsWith('docs.')) {
       // Replace docs.domain.com/path with domain.com/mkdocs/path
       const path = urlObj.pathname
-      fetchUrl = `https://${baseUrl}/${sitePathPrefix}${path}`
+      fetchUrl = `https://${state.baseUrl}/${state.sitePathPrefix}${path}`
     }
   } catch (e) {
     console.warn('Invalid URL for rewriting:', url)
@@ -204,12 +310,8 @@ async function fetchContent(url) {
   
   console.log('Original URL:', url)
   console.log('Fetching from:', fetchUrl)
-  const response = await fetch(fetchUrl)
   
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
-  }
-  
+  const response = await fetchWithFallback(fetchUrl)
   const html = await response.text()
   return html
 }
@@ -345,18 +447,29 @@ document.getElementById('fetch').addEventListener('click', async () => {
   const outputArea = document.getElementById('output')
   
   // Extract domain and path prefix for filtering
-  const urlObj = new URL(urlInput.value.trim())
-  const mainDomain = urlObj.hostname.split('.').slice(-2).join('.') 
-  baseUrl = mainDomain
-  sitePathPrefix = urlObj.pathname.split('/')[1] // Get the first path segment (e.g., 'mkdocs')
+  try {
+    const urlObj = new URL(urlInput.value.trim())
+    const mainDomain = urlObj.hostname.split('.').slice(-2).join('.') 
+    state.baseUrl = mainDomain
+    state.sitePathPrefix = urlObj.pathname.split('/')[1] // Get the first path segment
+  } catch (e) {
+    showStatus('Invalid URL provided', true)
+    return
+  }
   
   // Reset state
   outputArea.value = ''
   setButtonsEnabled(false)
   
   try {
-    showStatus('Fetching sitemap...')
+    showStatus('Searching for sitemap...')
     const urls = await fetchSitemap(urlInput.value)
+    
+    if (urls.length === 0) {
+      showStatus('No pages found to process', true)
+      setButtonsEnabled(true)
+      return
+    }
     
     showStatus(`Found ${urls.length} pages. Starting crawl...`)
     let combinedMarkdown = ''
