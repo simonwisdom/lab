@@ -73,12 +73,22 @@
     }
 
     .browser-viewport {
-      flex: 1;
+      flex: none;
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      position: relative;
       border: 1px solid rgba(0, 0, 0, 0.15);
       border-radius: 12px;
       background: white;
       padding: 1rem;
       overflow-y: auto;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
     }
 
     /* Status Toast */
@@ -756,31 +766,44 @@ If you cannot address the task with the available content, explain why.`;
         TaskState.jinaResponse = await jinaRes.json();
         updateJsonView();
 
-        // Fetch original page content with proxy
+        // Fetch original page content with proxy (optional for text extraction/logging)
         try {
           const origRes = await fetch(proxyUrl);
           if (origRes.ok) {
             const html = await origRes.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
-            doc.querySelectorAll('script').forEach(s => s.remove());
-
-            // Target the correct viewport element
-            const viewport = document.getElementById('browserViewport');
-            if (viewport) {
-              // Preserve the toolbar
-              const toolbar = viewport.querySelector('.browser-toolbar');
-              viewport.innerHTML = doc.body.innerHTML;
-              if (toolbar) {
-                viewport.insertBefore(toolbar, viewport.firstChild);
-              }
-            }
+            // Keep <script> tags intact
+            // Optional: Process this `doc` if needed for agent tasks
           }
         } catch (e) {
           debugLog(CONFIG.DEBUG.TYPES.ERROR, {
             message: 'Fallback content fetch failed',
             error: e.message
           });
+        }
+
+        // Use an iframe in the viewport to allow safe JS execution
+        const viewport = document.getElementById('browserViewport');
+        if (viewport) {
+          // Preserve the toolbar before clearing
+          const toolbar = viewport.querySelector('.browser-toolbar');
+          // Clear the viewport
+          viewport.innerHTML = '';
+          // If there was a toolbar, re-insert it
+          if (toolbar) {
+            viewport.appendChild(toolbar);
+          }
+
+          // Create an iframe to display the page
+          const iframe = document.createElement('iframe');
+          iframe.src = validUrl; // Set iframe source to the validated URL
+          iframe.style.width = '100%'; // Full width
+          iframe.style.height = '100%'; // Full height
+          iframe.style.border = 'none'; // No border
+          iframe.sandbox = 'allow-scripts allow-same-origin'; // Restrict iframe permissions
+
+          viewport.appendChild(iframe);
         }
 
         // Update history
