@@ -5,18 +5,14 @@ export const config = {
 export default async function handler(req) {
   const url = new URL(req.url);
   const origin = req.headers.get('origin');
-  const isAllowed = origin && (
-    origin.endsWith('simonwisdom.com')
-  );
-  
+  const isAllowed = origin && origin.endsWith('simonwisdom.com');
+
   if (!isAllowed) {
-    return new Response(JSON.stringify({
-      error: 'Unauthorized origin'
-    }), {
+    return new Response(JSON.stringify({ error: 'Unauthorized origin' }), {
       status: 403,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   }
 
@@ -28,24 +24,23 @@ export default async function handler(req) {
     'Access-Control-Max-Age': '86400',
   };
 
-  // Handle preflight
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
-      headers: corsHeaders
+      headers: corsHeaders,
     });
   }
 
   try {
     const targetUrl = url.searchParams.get('url');
-    
     if (!targetUrl) {
       return new Response(JSON.stringify({ error: 'Missing target URL' }), {
         status: 400,
         headers: {
           ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
     }
 
@@ -54,32 +49,38 @@ export default async function handler(req) {
       method: req.method,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; SitemapFinder/1.0)',
-      }
+      },
     });
 
-    // Get the response content
-    const data = await response.text();
-    const contentType = response.headers.get('content-type');
+    // Remove restrictive headers and retain only essential ones
+    const headers = new Headers(response.headers);
+    headers.delete('content-security-policy'); // Strip CSP
+    headers.delete('x-frame-options'); // Strip X-Frame-Options
 
-    // Return the proxied response
-    return new Response(data, {
+    // Get the response body
+    const body = await response.text();
+    const contentType = headers.get('content-type') || 'text/html';
+
+    return new Response(body, {
       status: response.status,
       headers: {
         ...corsHeaders,
-        'Content-Type': contentType || 'text/plain'
-      }
+        'Content-Type': contentType, // Ensure correct Content-Type
+      },
     });
-
   } catch (error) {
-    return new Response(JSON.stringify({ 
-      error: 'Error proxying request',
-      details: error.message 
-    }), {
-      status: 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
+    return new Response(
+      JSON.stringify({
+        error: 'Error proxying request',
+        details: error.message,
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
       }
-    });
+    );
   }
 }
