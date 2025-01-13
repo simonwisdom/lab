@@ -8,149 +8,149 @@
   <script type="module" src="js/common.js"></script>
 
   <style>
-   /* Layout-specific styles that don't exist in style.css */
-   .main-layout {
-  display: grid;
-  grid-template-areas:
-    "header header"
-    "toolbar toolbar"
-    "viewport panels"
-    "input panels";
-  grid-template-columns: 1fr 350px;
-  grid-template-rows: auto auto 1fr auto;
-  gap: 0.5rem;
-  height: 100vh;
-}
+    /* Layout-specific styles that don't exist in style.css */
+    .main-layout {
+      display: grid;
+      grid-template-areas:
+        "header header"
+        "toolbar toolbar"
+        "viewport panels"
+        "input panels";
+      grid-template-columns: 1fr 350px;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 0.5rem;
+      height: 100vh;
+    }
 
-/* Toolbar */
-.browser-toolbar {
-  grid-area: toolbar;
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  padding: 1rem;
-  background: #f9f9f9;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 12px 12px 0 0;
-}
+    /* Toolbar */
+    .browser-toolbar {
+      grid-area: toolbar;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      padding: 1rem;
+      background: #f9f9f9;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 12px 12px 0 0;
+    }
 
-.browser-toolbar button {
-  background: none;
-  border: none;
-  color: #555;
-  padding: 0.5rem;
-  border-radius: 6px;
-  transition: background 0.3s;
-}
+    .browser-toolbar button {
+      background: none;
+      border: none;
+      color: #555;
+      padding: 0.5rem;
+      border-radius: 6px;
+      transition: background 0.3s;
+    }
 
-.browser-toolbar button:hover {
-  background: rgba(0, 0, 0, 0.1);
-}
+    .browser-toolbar button:hover {
+      background: rgba(0, 0, 0, 0.1);
+    }
 
-.url-bar {
-  flex: 1;
-  font-size: 16px;
-  padding: 0.75rem 1rem;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.03);
-  transition: all 0.3s;
-}
+    .url-bar {
+      flex: 1;
+      font-size: 16px;
+      padding: 0.75rem 1rem;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.03);
+      transition: all 0.3s;
+    }
 
-.url-bar:focus {
-  background: white;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px var(--color-primary-light);
-}
+    .url-bar:focus {
+      background: white;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 4px var(--color-primary-light);
+    }
 
-/* Viewport */
-.viewport-container {
-  grid-area: viewport;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
+    /* Viewport */
+    .viewport-container {
+      grid-area: viewport;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
-.browser-viewport {
-  flex: 1;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 12px;
-  background: white;
-  padding: 1rem;
-  overflow-y: auto;
-}
+    .browser-viewport {
+      flex: 1;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 12px;
+      background: white;
+      padding: 1rem;
+      overflow-y: auto;
+    }
 
-/* Status Toast */
-.status-toast {
-  position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  z-index: 100;
-  transition: opacity 0.3s ease;
-}
+    /* Status Toast */
+    .status-toast {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      z-index: 100;
+      transition: opacity 0.3s ease;
+    }
 
-/* Panels */
-.info-panel-container {
-  grid-area: panels;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 100%;
-  border: var(--border-organic);
-  border-radius: 8px;
-  overflow: hidden;
-  background: white;
-}
+    /* Panels */
+    .info-panel-container {
+      grid-area: panels;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      border: var(--border-organic);
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
 
-.panel-content {
-  flex: 1;
-  overflow-y: auto;
-  display: none;
-  padding: 0.5rem;
-}
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      display: none;
+      padding: 0.5rem;
+    }
 
-.panel-content.active {
-  display: block;
-}
+    .panel-content.active {
+      display: block;
+    }
 
-.panel-tabs {
-  display: flex;
-  background: #f5f5f5;
-  border-bottom: var(--border-organic);
-}
+    .panel-tabs {
+      display: flex;
+      background: #f5f5f5;
+      border-bottom: var(--border-organic);
+    }
 
-.panel-tab {
-  padding: 0.5rem 1rem;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #666;
-}
+    .panel-tab {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #666;
+    }
 
-.panel-tab.active {
-  background: white;
-  color: var(--color-primary);
-  border-bottom: 2px solid var(--color-primary);
-}
+    .panel-tab.active {
+      background: white;
+      color: var(--color-primary);
+      border-bottom: 2px solid var(--color-primary);
+    }
 
-/* Chat Controls */
-.chat-controls {
-  grid-area: input;
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  align-items: center;
-}
+    /* Chat Controls */
+    .chat-controls {
+      grid-area: input;
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      align-items: center;
+    }
 
-.chat-input {
+    .chat-input {
       flex: 1;
       font-size: 16px;
       padding: 0.875rem 1rem;
@@ -185,113 +185,115 @@
       transform: translateY(-1px);
     }
 
-/* Links Panel */
-.link-item {
-  padding: 0.5rem;
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
+    /* Links Panel */
+    .link-item {
+      padding: 0.5rem;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
 
-.link-item:hover {
-  background: #f5f5f5;
-}
+    .link-item:hover {
+      background: #f5f5f5;
+    }
 
-.link-text {
-  color: var(--color-primary);
-}
+    .link-text {
+      color: var(--color-primary);
+    }
 
-.link-url {
-  display: none;
-  font-size: 0.8rem;
-  color: #666;
-  margin-top: 0.25rem;
-}
+    .link-url {
+      display: none;
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
 
-.link-item:hover .link-url {
-  display: block;
-}
+    .link-item:hover .link-url {
+      display: block;
+    }
 
-/* Debug Panel */
-.debug-entry {
-  margin-bottom: 0.5rem;
-  padding: 0.5rem;
-  border-left: 2px solid var(--color-primary);
-  background: rgba(0, 0, 0, 0.02);
-  font-size: 0.9rem;
-}
+    /* Debug Panel */
+    .debug-entry {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-left: 2px solid var(--color-primary);
+      background: rgba(0, 0, 0, 0.02);
+      font-size: 0.9rem;
+    }
 
-.debug-type {
-  font-size: 0.8rem;
-  color: var(--color-primary);
-  margin-bottom: 0.25rem;
-}
+    .debug-type {
+      font-size: 0.8rem;
+      color: var(--color-primary);
+      margin-bottom: 0.25rem;
+    }
 
-.debug-timestamp {
-  float: right;
-  font-size: 0.8rem;
-  color: #666;
-}
+    .debug-timestamp {
+      float: right;
+      font-size: 0.8rem;
+      color: #666;
+    }
 
-.debug-entry pre {
-  background: #f5f5f5;
-  padding: 0.5rem;
-  border-radius: 4px;
-  overflow-x: auto;
-  font-size: 12px;
-  margin: 0.5rem 0;
-}
+    .debug-entry pre {
+      background: #f5f5f5;
+      padding: 0.5rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin: 0.5rem 0;
+    }
 
-.debug-content {
-  margin-top: 0.5rem;
-}
+    .debug-content {
+      margin-top: 0.5rem;
+    }
 
-/* Chat Area */
-.chat-window {
-  height: 150px;
-  overflow-y: auto;
-  padding: 0.5rem;
-}
+    /* Chat Area */
+    .chat-window {
+      height: 150px;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
 
-.chat-message {
-  margin-bottom: 0.5rem;
-  padding: 0.5rem;
-  border-radius: 4px;
-  max-width: 80%;
-}
+    .chat-message {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 4px;
+      max-width: 80%;
+    }
 
-.user-message {
-  background: var(--color-primary-light);
-  margin-left: auto;
-}
+    .user-message {
+      background: var(--color-primary-light);
+      margin-left: auto;
+    }
 
-.agent-message {
-  background: #f5f5f5;
-  margin-right: auto;
-}
+    .agent-message {
+      background: #f5f5f5;
+      margin-right: auto;
+    }
 
-/* Overrides for specific components */
-.btn {
-  padding: 0.5rem 1rem; /* Reduced from 0.875rem 1.75rem */
-  font-size: 0.875rem; /* Reduced from 1rem */
-}
+    /* Overrides for specific components */
+    .btn {
+      padding: 0.5rem 1rem;
+      /* Reduced from 0.875rem 1.75rem */
+      font-size: 0.875rem;
+      /* Reduced from 1rem */
+    }
 
-/* Utility overrides */
-.collapsed {
-  display: none;
-}
+    /* Utility overrides */
+    .collapsed {
+      display: none;
+    }
 
-body {
-  margin: 0;
-  padding: 1rem;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+    body {
+      margin: 0;
+      padding: 1rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-.info-panel-container footer {
-  margin-top: auto; 
-}
+    .info-panel-container footer {
+      margin-top: auto;
+    }
   </style>
 </head>
 
@@ -301,7 +303,7 @@ body {
 
 
     <div class="viewport-container">
-      <div class="browser-viewport">
+      <div id="browserViewport" class="browser-viewport">
         <div class="browser-toolbar">
           <button id="backBtn">←</button>
           <button id="forwardBtn">→</button>
@@ -726,8 +728,12 @@ If you cannot address the task with the available content, explain why.`;
       }
 
       try {
+        // Display the clean URL in the URL bar (without proxy)
         urlBar.value = validUrl;
         agentState.currentUrl = validUrl;
+
+        // Add proxy prefix for actual fetch
+        const proxyUrl = CONFIG.ORIGINAL_PROXY + encodeURIComponent(validUrl);
 
         // Try Jina API with retries
         let jinaRes;
@@ -750,15 +756,25 @@ If you cannot address the task with the available content, explain why.`;
         TaskState.jinaResponse = await jinaRes.json();
         updateJsonView();
 
-        // Fetch original page as fallback
+        // Fetch original page content with proxy
         try {
-          const origRes = await fetch(CONFIG.ORIGINAL_PROXY + encodeURIComponent(validUrl));
+          const origRes = await fetch(proxyUrl);
           if (origRes.ok) {
             const html = await origRes.text();
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             doc.querySelectorAll('script').forEach(s => s.remove());
-            browserViewport.innerHTML = doc.body.innerHTML;
+
+            // Target the correct viewport element
+            const viewport = document.getElementById('browserViewport');
+            if (viewport) {
+              // Preserve the toolbar
+              const toolbar = viewport.querySelector('.browser-toolbar');
+              viewport.innerHTML = doc.body.innerHTML;
+              if (toolbar) {
+                viewport.insertBefore(toolbar, viewport.firstChild);
+              }
+            }
           }
         } catch (e) {
           debugLog(CONFIG.DEBUG.TYPES.ERROR, {
