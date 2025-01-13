@@ -34,25 +34,33 @@ function addTracking() {
 }
 
 function addFooter() {
-  const footer = document.createElement('footer');
-  footer.innerHTML = `
-    <p>
-      <a href="https://lab.simonwisdom.com/favicon.ico">
-        <img src="https://lab.simonwisdom.com/favicon.ico" alt="Favicon">
-      </a>
-      <a href="https://lab.simonwisdom.com">lab.simonwisdom.com</a>
-    </p>
-  `;
+  function initializeFooter() {
+    // First try to find any existing footer
+    let footer = document.querySelector('footer');
+    
+    // If no footer exists, create a new one
+    if (!footer) {
+      footer = document.createElement('footer');
+      document.body.appendChild(footer);
+    }
 
-  function appendFooterAndFeedback() {
-    document.body.appendChild(footer);
+    // Update the footer content
+    footer.innerHTML = `
+      <p>
+        <a href="https://lab.simonwisdom.com/favicon.ico">
+          <img src="https://lab.simonwisdom.com/favicon.ico" alt="Favicon">
+        </a>
+        <a href="https://lab.simonwisdom.com">lab.simonwisdom.com</a>
+      </p>
+    `;
+    
     addFeedbackSystem();
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', appendFooterAndFeedback);
+    document.addEventListener('DOMContentLoaded', initializeFooter);
   } else {
-    appendFooterAndFeedback();
+    initializeFooter();
   }
 }
 
