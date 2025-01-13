@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Agentic Web Browsing</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-areas:
+        "header header"
+        "toolbar toolbar"
+        "viewport panels"
+        "input panels";
+      grid-template-columns: 1fr 350px;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 0.5rem;
+      height: 100%;
+      max-height: 100vh;
+    }
+
+
+    /* Header & Navigation */
+    .browser-toolbar {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.5rem;
+      background: #f5f5f5;
+      border: var(--border-organic);
+      border-radius: 8px;
+    }
+
+    .url-bar {
+      flex: 1;
+      font-size: 16px;
+    }
+
+    /* Main viewport */
+
+    .viewport-container {
+      grid-area: viewport;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .browser-viewport {
+      flex: 1;
+      background: white;
+      padding: 1rem;
+      border: var(--border-organic);
+      border-radius: 8px;
+      overflow-y: auto;
+    }
+
+    /* Status Toast */
+    .status-toast {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      z-index: 100;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Info Panel Container */
+    .info-panel-container {
+      grid-area: panels;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      border: var(--border-organic);
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      display: none;
+      padding: 0.5rem;
+    }
+
+    .chat-controls {
+      grid-area: input;
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.5rem;
+    }
+
+    .panel-tabs {
+      display: flex;
+      background: #f5f5f5;
+      border-bottom: var(--border-organic);
+    }
+
+    .panel-tab {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .panel-tab.active {
+      background: white;
+      color: var(--color-primary);
+      border-bottom: 2px solid var(--color-primary);
+    }
+
+
+    .panel-content.active {
+      display: block;
+    }
+
+    /* Links Panel */
+    .link-item {
+      padding: 0.5rem;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .link-item:hover {
+      background: #f5f5f5;
+    }
+
+    .link-text {
+      color: var(--color-primary);
+    }
+
+    .link-url {
+      display: none;
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    .link-item:hover .link-url {
+      display: block;
+    }
+
+    /* Debug Panel */
+    .debug-entry {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-left: 2px solid var(--color-primary);
+      background: rgba(0, 0, 0, 0.02);
+      font-size: 0.9rem;
+    }
+
+    .debug-type {
+      font-size: 0.8rem;
+      color: var(--color-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .debug-timestamp {
+      float: right;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    /* Chat Area */
+    .chat-container {
+      border: var(--border-organic);
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
+
+    .chat-window {
+      height: 150px;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+
+    .chat-message {
+      margin-bottom: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 4px;
+      max-width: 80%;
+    }
+
+    .user-message {
+      background: var(--color-primary-light);
+      margin-left: auto;
+    }
+
+    .agent-message {
+      background: #f5f5f5;
+      margin-right: auto;
+    }
+
+    #userInput {
+      flex: 1;
+      font-size: 16px;
+    }
+
+    /* Utility Classes */
+    .collapsed {
+      display: none;
+    }
+
+    .icon-button {
+      padding: 0.25rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+    }
+
+    .icon-button:hover {
+      color: var(--color-primary);
+    }
+
+    .debug-entry pre {
+      background: #f5f5f5;
+      padding: 0.5rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+      margin: 0.5rem 0;
+    }
+
+    .debug-entry strong {
+      color: var(--color-primary);
+    }
+
+    .debug-content {
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="main-layout">
+    <h1>Agentic Web Browsing</h1>
+
+    <div class="browser-toolbar">
+      <button class="btn" id="backBtn">←</button>
+      <button class="btn" id="forwardBtn">→</button>
+      <button class="btn" id="reloadBtn">↻</button>
+      <input type="text" class="form-control url-bar" id="urlBar" placeholder="Enter URL">
+    </div>
+
+    <div class="viewport-container">
+      <div class="browser-viewport" id="browserViewport">
+        <div class="card">
+          <h2>Welcome!</h2>
+          <p>The browser viewport will show the current webpage being viewed by the agent.</p>
+        </div>
+      </div>
+      <div id="statusToast" class="status-toast"></div>
+    </div>
+
+    <div class="info-panel-container">
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-panel="chat">Chat</button>
+        <button class="panel-tab" data-panel="links">Links</button>
+        <button class="panel-tab" data-panel="debug">Debug</button>
+      </div>
+
+      <div id="chatPanel" class="panel-content active">
+        <div id="chatWindow"></div>
+      </div>
+
+      <div id="linksPanel" class="panel-content">
+        <!-- Links will be inserted here -->
+      </div>
+
+      <div id="debugPanel" class="panel-content">
+        <!-- Debug entries will be inserted here -->
+      </div>
+    </div>
+
+    <div class="chat-controls">
+      <input type="text" class="form-control" id="userInput" placeholder="Type your instructions...">
+      <button class="btn btn-primary" id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { LLMClient } from './js/llm-client.js';
+    const llm = new LLMClient();
+
+    const TaskState = {
+      plan: null,
+      actionHistory: [],
+      pageContent: '',
+      jinaResponse: null,
+      taskComplete: false,
+      failedAttempts: [],
+      reset() {
+        this.plan = null;
+        this.actionHistory = [];
+        this.pageContent = '';
+        this.jinaResponse = null;
+        this.taskComplete = false;
+        this.failedAttempts = [];
+      }
+    };
+
+    const CONFIG = {
+      MAX_RETRIES: 3,
+      JINA_PREFIX: 'https://r.jina.ai/',
+      ORIGINAL_PROXY: 'https://lab-proxy.vercel.app/api/proxy?url=',
+      JINA_HEADERS: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer jina_98f5359b8ac94d8f81da80ce4e0fdd192mA17qpogTYwvkIrTPWJ6Qej-xn3',
+        'X-Retain-Images': 'none',
+        'X-With-Links-Summary': 'true'
+      },
+      MAX_REPEAT_ACTIONS: 3,
+      NAVIGATION_KEYWORDS: {
+        BACK: ['previous page', 'go back', 'last page'],
+        FORWARD: ['next page', 'forward'],
+        HOME: ['home page', 'main page', 'homepage']
+      },
+      CONTENT_EXTRACTION: {
+        MIN_LENGTH: 50,
+        MAX_RETRIES: 2
+      },
+      DEBUG: {
+        ENABLED: true,
+        MAX_ENTRIES: 100,
+        TYPES: {
+          ACTION: 'Action',
+          STATE: 'State Change',
+          API: 'API Response',
+          ERROR: 'Error',
+          INFO: 'Info'
+        }
+      },
+      PLAN_TEMPLATE:
+        `You are a web browsing agent that completes multi-step tasks.
+Given this task: "{userInput}"
+1. Define what "task complete" means
+2. Break into concrete steps
+3. Return plan as JSON:
+{
+  "taskDefinition": "desc",
+  "successCriteria": ["..."],
+  "plannedSteps": ["..."],
+  "currentStep":0
+}`,
+      STEP_TEMPLATE:
+        `You are a web browsing agent in the middle of a task.
+CURRENT TASK STATUS:
+Task: {taskDefinition}
+Success Criteria: {successCriteria}
+Current Step: {currentStep} of {totalSteps}
+Current URL: {currentUrl}
+Available Links: {links}
+Previous Actions: {actionHistory}
+${TaskState.extractedContent ? `\nExtracted Content:\n${TaskState.extractedContent.slice(0, 500)}...\n` : ''}
+
+The first step should be to check links for relevant matches.
+When you want to follow a link, return {"action":"click","target":"..."}.
+
+When you want to read text, return {"action":"extract_text"}.
+After extracting text, you should either:
+1. Click a relevant link if more investigation is needed
+2. Summarize what you found if it answers the original question
+3. Explain if you're stuck and why
+
+When you want to type, return {"action":"type","target":"...","text":"..."}.
+When you want to go to a URL, return {"action":"goto","url":"..."}.
+
+Either:
+1. Next action as {"action":"goto|click|type|extract_text",...}
+2. Or if complete, summarize
+3. Or if stuck, explain
+Explain reasoning before the action.`,
+
+      ANALYSIS_TEMPLATE: `Current Task: {taskDefinition}
+Success Criteria: {successCriteria}
+Progress: Step {currentStep} of {totalSteps}
+Current URL: {currentUrl}
+Page Content Available: {hasPageContent}
+Action History: {actionHistory}
+Available Links: {links}
+
+`,
+    };
+
+    const urlBar = document.getElementById('urlBar');
+    const backBtn = document.getElementById('backBtn');
+    const forwardBtn = document.getElementById('forwardBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const browserViewport = document.getElementById('browserViewport');
+    const chatWindow = document.getElementById('chatWindow');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    let history = [];
+    let currentHistoryIndex = -1;
+    const agentState = { currentUrl: null, currentPage: null, actionHistory: [] };
+
+    // Status toast helpers
+    let statusTimeout;
+    function showStatusToast(message) {
+      const toast = document.getElementById('statusToast');
+      toast.textContent = message;
+      toast.style.opacity = '1';
+      clearTimeout(statusTimeout);
+      statusTimeout = setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 3000);
+    }
+
+    // Single unified updateStatus
+    function updateStatus(message) {
+      showStatusToast(message);
+      debugLog(CONFIG.DEBUG.TYPES.INFO, 'Status: ' + message);
+    }
+
+    // Single unified debugLog referencing the existing debugPanel
+    function debugLog(type, content) {
+      if (!CONFIG.DEBUG.ENABLED) return;
+      const debugPanel = document.getElementById('debugPanel');
+      if (!debugPanel) return;
+
+      const entry = document.createElement('div');
+      entry.className = 'debug-entry';
+
+      const timestamp = new Date().toLocaleTimeString();
+
+      let formattedContent;
+      if (typeof content === 'object') {
+        if (content.message) {
+          formattedContent = `<strong>${content.message}</strong><br>`;
+          const { message, ...rest } = content;
+          formattedContent += `<pre>${JSON.stringify(rest, null, 2)}</pre>`;
+        } else {
+          formattedContent = `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+        }
+      } else {
+        formattedContent = content;
+      }
+
+      entry.innerHTML = `
+    <div class="debug-type">
+      ${type}
+      <span class="debug-timestamp">${timestamp}</span>
+    </div>
+    <div class="debug-content">
+      ${formattedContent}
+    </div>
+  `;
+
+      debugPanel.insertBefore(entry, debugPanel.firstChild);
+
+      while (debugPanel.children.length > CONFIG.DEBUG.MAX_ENTRIES) {
+        debugPanel.removeChild(debugPanel.lastChild);
+      }
+    }
+
+    // Simplified version of updateJsonView
+    function updateJsonView() {
+      const linksPanel = document.getElementById('linksPanel');
+      const links = TaskState.jinaResponse?.data?.links;
+
+      if (!links || Object.keys(links).length === 0) {
+        linksPanel.innerHTML = '<div class="status">No links available</div>';
+        return;
+      }
+
+      linksPanel.innerHTML = Object.entries(links)
+        .map(([text, url]) => `
+          <div class="link-item">
+            <div class="link-text">${text}</div>
+            <div class="link-url">${url}</div>
+          </div>
+        `).join('');
+    }
+
+    // Panel tabs
+    document.addEventListener('DOMContentLoaded', () => {
+      // Ensure chat tab and panel are active by default
+      document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.panel === 'chat') {
+          tab.classList.add('active');
+        }
+      });
+      document.querySelectorAll('.panel-content').forEach(panel => {
+        panel.classList.remove('active');
+        if (panel.id === 'chatPanel') {
+          panel.classList.add('active');
+        }
+      });
+
+      // Add click handlers for tabs
+      document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.panel + 'Panel').classList.add('active');
+        });
+      });
+    });
+
+    function addChatMessage(message, isUser = false) {
+      const m = document.createElement('div');
+      m.className = `chat-message ${isUser ? 'user-message' : 'agent-message'}`;
+      m.textContent = message;
+      chatWindow.appendChild(m);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    async function handleUserInput(input) {
+      addChatMessage(input, true);
+      userInput.disabled = true;
+      sendBtn.disabled = true;
+      try {
+        await initializeTask(input);
+      } catch (e) {
+        console.error(e);
+        updateStatus(`Error: ${e.message}`);
+        addChatMessage(`Error: ${e.message}`);
+      } finally {
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+      }
+    }
+
+    async function initializeTask(input) {
+      TaskState.reset();
+      try {
+        const planningPrompt = CONFIG.PLAN_TEMPLATE.replace('{userInput}', input);
+        const planResponse = await llm.sendMessage(planningPrompt);
+        let jsonMatch = planResponse.match(/\{[\s\S]*?\}/);
+        if (!jsonMatch) throw new Error('No valid JSON in response');
+        try {
+          TaskState.plan = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          let cleaned = jsonMatch[0]
+            .replace(/\n/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/'/g, '"')
+            .replace(/\\"/g, '"')
+            .replace(/[""]/g, '"')
+            .replace(/['']/g, "'")
+            .replace(/,(\s*[}\]])/g, '$1')
+            .replace(/\u200B/g, '');
+          try {
+            TaskState.plan = JSON.parse(cleaned);
+          } catch (secondError) {
+            console.error('Original parse error:', e);
+            console.error('Cleanup parse error:', secondError);
+            console.error('Cleaned JSON string:', cleaned);
+            throw new Error('Could not parse plan JSON: ' + secondError.message);
+          }
+        }
+        if (!TaskState.plan || !TaskState.plan.taskDefinition) {
+          throw new Error('Invalid plan format');
+        }
+        addChatMessage(`📋 Plan: ${TaskState.plan.taskDefinition}`);
+        addChatMessage(`✓ Success Criteria:\n${TaskState.plan.successCriteria.map(c => '- ' + c).join('\n')}`);
+        await executeNextStep();
+      } catch (e) {
+        console.error(e);
+        updateStatus(`Failed to init: ${e.message}`);
+        addChatMessage('Couldn\'t plan task. Rephrase?');
+      }
+    }
+
+    async function executeNextStep() {
+      if (TaskState.taskComplete) return;
+
+      // Prevent loops of the same action
+      const lastActions = TaskState.actionHistory.slice(-2);
+      if (
+        lastActions.length === 2 &&
+        lastActions[0].type === lastActions[1].type &&
+        lastActions[0].type === 'extract_text'
+      ) {
+        const finalPrompt = `
+You've extracted text multiple times from ${agentState.currentUrl}.
+Latest content: "${TaskState.extractedContent?.slice(0, 2000) || 'No content found'}"
+
+Please provide a final analysis addressing the original task based on all available information.
+If you cannot address the task with the available content, explain why.`;
+
+        const finalAnalysis = await llm.sendMessage(finalPrompt);
+        addChatMessage(finalAnalysis);
+        TaskState.taskComplete = true;
+        updateStatus('Task completed after multiple extraction attempts');
+        return;
+      }
+
+      try {
+
+        debugLog(CONFIG.DEBUG.TYPES.INFO, {
+          message: 'Raw Jina Response Data',
+          jinaResponse: TaskState.jinaResponse,
+          links: TaskState.jinaResponse?.data?.links
+        });
+
+        const stepContext = {
+          taskDefinition: TaskState.plan.taskDefinition,
+          successCriteria: TaskState.plan.successCriteria.join(', '),
+          currentStep: TaskState.plan.currentStep + 1,
+          totalSteps: TaskState.plan.plannedSteps.length,
+          currentUrl: agentState.currentUrl || 'No page loaded',
+          hasPageContent: !!browserViewport.innerHTML,
+          actionHistory: TaskState.actionHistory.map(a => `${a.type}:${a.url || a.target || ''}`).join(', '),
+          links: JSON.stringify(TaskState.jinaResponse?.data?.links || {}, null, 2)
+        };
+
+        // Debug log the step context
+        debugLog(CONFIG.DEBUG.TYPES.INFO, {
+          message: 'Step Context',
+          context: stepContext
+        });
+
+        let stepPrompt = CONFIG.STEP_TEMPLATE;
+        for (const [k, v] of Object.entries(stepContext)) {
+          stepPrompt = stepPrompt.replace(`{${k}}`, v);
+        }
+
+        // generate dubug log including the prompt and the analysis
+        debugLog(CONFIG.DEBUG.TYPES.INFO, { prompt: stepPrompt });
+
+        const stepResponse = await llm.sendMessage(stepPrompt);
+        addChatMessage(stepResponse);
+        const actions = parseAgentActions(stepResponse);
+        if (actions.length > 0) {
+          updateStatus(`Executing step ${stepContext.currentStep}/${stepContext.totalSteps}`);
+          for (const action of actions) {
+            await executeActionWithRetry(action);
+          }
+          TaskState.plan.currentStep++;
+          if (TaskState.plan.currentStep < TaskState.plan.plannedSteps.length) {
+            await executeNextStep();
+          }
+        } else if (/task complete/i.test(stepResponse)) {
+          TaskState.taskComplete = true;
+          updateStatus('Task completed');
+        } else {
+          updateStatus('No action parsed - possibly stuck');
+        }
+      } catch (e) {
+        console.error(e);
+        updateStatus(`Step error: ${e.message}`);
+      }
+    }
+
+    async function navigateTo(url) {
+      debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Attempting navigation', url: url });
+
+      const validUrl = validateAndFormatUrl(url);
+      if (!validUrl) {
+        throw new Error(`Invalid URL: ${url}`);
+      }
+
+      try {
+        urlBar.value = validUrl;
+        agentState.currentUrl = validUrl;
+
+        // Try Jina API with retries
+        let jinaRes;
+        for (let i = 0; i < 3; i++) {
+          try {
+            jinaRes = await fetch(CONFIG.JINA_PREFIX + validUrl, {
+              headers: CONFIG.JINA_HEADERS
+            });
+            if (jinaRes.ok) break;
+            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+          } catch (e) {
+            if (i === 2) throw e;
+          }
+        }
+
+        if (!jinaRes.ok) {
+          throw new Error(`Jina error: ${jinaRes.status}`);
+        }
+
+        TaskState.jinaResponse = await jinaRes.json();
+        updateJsonView();
+
+        // Fetch original page as fallback
+        try {
+          const origRes = await fetch(CONFIG.ORIGINAL_PROXY + encodeURIComponent(validUrl));
+          if (origRes.ok) {
+            const html = await origRes.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            doc.querySelectorAll('script').forEach(s => s.remove());
+            browserViewport.innerHTML = doc.body.innerHTML;
+          }
+        } catch (e) {
+          debugLog(CONFIG.DEBUG.TYPES.ERROR, {
+            message: 'Fallback content fetch failed',
+            error: e.message
+          });
+        }
+
+        // Update history
+        if (currentHistoryIndex < history.length - 1) {
+          history = history.slice(0, currentHistoryIndex + 1);
+        }
+        history.push(validUrl);
+        currentHistoryIndex++;
+
+        backBtn.disabled = (currentHistoryIndex === 0);
+        forwardBtn.disabled = (currentHistoryIndex === history.length - 1);
+
+        updateStatus(`Navigated to ${validUrl}`);
+        updateJsonView();
+        return true;
+      } catch (e) {
+        console.error(e);
+        updateStatus(`Failed to navigate: ${e.message}`);
+        debugLog(CONFIG.DEBUG.TYPES.ERROR, {
+          message: e.message,
+          stack: e.stack
+        });
+        return false;
+      }
+    }
+
+    async function extractPageContent() {
+      let content = '';
+
+      // Try Jina content first
+      if (TaskState.jinaResponse?.data?.content) {
+        content = TaskState.jinaResponse.data.content;
+      }
+
+      // Fallback: Extract from viewport if Jina content is too short
+      if (!content || content.length < CONFIG.CONTENT_EXTRACTION.MIN_LENGTH) {
+        const viewport = document.getElementById('browserViewport');
+        if (viewport) {
+          // Remove script tags and extract text
+          const clone = viewport.cloneNode(true);
+          clone.querySelectorAll('script, style').forEach(el => el.remove());
+          content = clone.textContent.replace(/\s+/g, ' ').trim();
+        }
+      }
+
+      return content;
+    }
+
+    function parseAgentActions(response) {
+      const actions = [];
+      try {
+        const toolRegex = /```(?:tool_code|json)\s*(\{[\s\S]*?\})\s*```/g;
+        let m;
+        while ((m = toolRegex.exec(response)) !== null) {
+          try {
+            const p = JSON.parse(m[1].trim());
+            if (p && p.action) actions.push({ type: p.action, url: p.url, target: p.target, text: p.text });
+          } catch { }
+        }
+        if (actions.length === 0) {
+          const jRegex = /\{[\s\S]*?"action":\s*"[^"]+?"[\s\S]*?\}/g;
+          while ((m = jRegex.exec(response)) !== null) {
+            try {
+              const p = JSON.parse(m[0]);
+              if (p && p.action) actions.push({ type: p.action, url: p.url, target: p.target, text: p.text });
+            } catch { }
+          }
+        }
+      } catch { }
+      if (!actions.length) {
+        const gotoMatch = response.match(/goto["']?.*?["']?(https?:\/\/[^"'\s]+)/i);
+        if (gotoMatch) {
+          actions.push({ type: 'goto', url: gotoMatch[1] });
+        }
+      }
+      return actions;
+    }
+
+    async function executeActionWithRetry(action, maxRetries = 3) {
+      let lastErr;
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          await executeAction(action);
+          return true;
+        } catch (e) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+        }
+      }
+      throw lastErr;
+    }
+
+    function validateAndFormatUrl(url) {
+      if (!url) return null;
+
+      // Handle navigation keywords
+      if (typeof url === 'string') {
+        const urlLower = url.toLowerCase();
+
+        // Handle "previous page"
+        if (CONFIG.NAVIGATION_KEYWORDS.BACK.some(keyword => urlLower.includes(keyword))) {
+          if (currentHistoryIndex > 0) {
+            return history[currentHistoryIndex - 1];
+          }
+          return null;
+        }
+
+        // Handle "next page"
+        if (CONFIG.NAVIGATION_KEYWORDS.FORWARD.some(keyword => urlLower.includes(keyword))) {
+          if (currentHistoryIndex < history.length - 1) {
+            return history[currentHistoryIndex + 1];
+          }
+          return null;
+        }
+
+        // Handle "home page"
+        if (CONFIG.NAVIGATION_KEYWORDS.HOME.some(keyword => urlLower.includes(keyword))) {
+          try {
+            const currentUrl = new URL(agentState.currentUrl);
+            return currentUrl.origin;
+          } catch {
+            return null;
+          }
+        }
+      }
+
+      // Add https if needed
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+      }
+
+      try {
+        new URL(url);
+        return url;
+      } catch {
+        return null;
+      }
+    }
+
+    async function executeAction(action) {
+      debugLog(CONFIG.DEBUG.TYPES.ACTION, { type: action.type, details: action });
+
+      if (!action || !action.type) {
+        debugLog(CONFIG.DEBUG.TYPES.ERROR, 'Invalid action');
+        updateStatus('Invalid action');
+        return;
+      }
+
+      // Check for action loops
+      const recentActions = TaskState.actionHistory.slice(-CONFIG.MAX_REPEAT_ACTIONS);
+      const repeatedCount = recentActions.filter(a =>
+        a.type === action.type &&
+        a.url === action.url &&
+        a.target === action.target
+      ).length;
+
+      if (repeatedCount >= CONFIG.MAX_REPEAT_ACTIONS) {
+        throw new Error(`Action ${action.type} repeated too many times`);
+      }
+
+      try {
+        switch (action.type.toLowerCase()) {
+          case 'extract_text': {
+            const content = await extractPageContent();
+            if (content) {
+              TaskState.extractedContent = content;
+              addChatMessage(`Found the following content:\n${content.slice(0, 1000)}...`);
+
+              // Build context for the analysis
+              const stepContext = {
+                taskDefinition: TaskState.plan.taskDefinition,
+                successCriteria: TaskState.plan.successCriteria.join(', '),
+                currentStep: TaskState.plan.currentStep + 1,
+                totalSteps: TaskState.plan.plannedSteps.length,
+                currentUrl: agentState.currentUrl || 'No page loaded',
+                hasPageContent: !!browserViewport.innerHTML,
+                actionHistory: TaskState.actionHistory.map(a => `${a.type}:${a.url || a.target || ''}`).join(', '),
+                links: TaskState.jinaResponse?.data?.links || {}
+              };
+
+              // Replace context variables in template
+              let analysisPrompt = CONFIG.ANALYSIS_TEMPLATE;
+              for (const [k, v] of Object.entries(stepContext)) {
+                analysisPrompt = analysisPrompt.replace(`{${k}}`, v);
+              }
+
+              // Add extracted content to prompt
+              analysisPrompt += `\nExtracted content from ${agentState.currentUrl}:\n"${content.slice(0, 2000)}"\n\n`;
+              analysisPrompt += `Based on this content and the original task/goal, either:
+1. Provide an analysis that addresses the task if you found relevant information
+2. Suggest a next action (like clicking a specific link) if more investigation is needed
+3. Explain if the needed information isn't in this content
+
+Format your response as a regular message without any JSON actions if you've found what's needed,
+or use the standard action format if more investigation is needed.`;
+
+              // Log for debugging
+              debugLog(CONFIG.DEBUG.TYPES.INFO, {
+                context: stepContext,
+                prompt: analysisPrompt
+              });
+
+              const analysis = await llm.sendMessage(analysisPrompt);
+              addChatMessage(analysis);
+
+              if (!analysis.includes('"action"')) {
+                TaskState.taskComplete = true;
+                updateStatus('Information found and task completed');
+              }
+            } else {
+              throw new Error('No content found on page');
+            }
+            break;
+          }
+          case 'click': {
+            const links = TaskState.jinaResponse?.data?.links || {};
+            debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Available Jina links', links: links });
+            if (action.target) {
+              const linkEntries = Object.entries(links);
+              const match = linkEntries.find(([text, url]) =>
+                text.toLowerCase().includes(action.target.toLowerCase()) ||
+                action.target.toLowerCase().includes(text.toLowerCase())
+              );
+              debugLog(CONFIG.DEBUG.TYPES.INFO, {
+                message: 'Link matching result',
+                target: action.target,
+                matchFound: !!match,
+                matchDetails: match
+              });
+              if (match) {
+                await navigateTo(match[1]);
+                updateStatus(`Clicked Jina link: ${match[0]}`);
+              } else {
+                // Fallback to actual DOM
+                let element = findElementByText(browserViewport, action.target);
+                if (element) {
+                  if (element.href) {
+                    await navigateTo(element.href);
+                  } else {
+                    element.click();
+                  }
+                  updateStatus(`Clicked DOM element: ${action.target}`);
+                } else {
+                  updateStatus(`No clickable match for "${action.target}"`);
+                }
+              }
+            } else {
+              updateStatus('Missing target for click');
+            }
+            break;
+          }
+          case 'goto': {
+            if (action.url) {
+              await navigateTo(action.url);
+            } else {
+              updateStatus('No url in goto');
+            }
+            break;
+          }
+          case 'type': {
+            if (action.target && action.text) {
+              const inp = browserViewport.querySelector(action.target);
+              if (inp) {
+                inp.value = action.text;
+                updateStatus(`Typed "${action.text}"`);
+              } else {
+                updateStatus(`No input: ${action.target}`);
+              }
+            } else {
+              updateStatus('Missing target/text for type');
+            }
+            break;
+          }
+
+          default:
+            updateStatus(`Unknown action: ${action.type}`);
+        }
+        agentState.actionHistory.push(action);
+      } catch (e) {
+        debugLog(CONFIG.DEBUG.TYPES.ERROR, {
+          message: e.message,
+          stack: e.stack
+        });
+        console.error(e);
+        updateStatus(`Action error: ${e.message}`);
+        TaskState.failedAttempts.push({
+          action,
+          error: e.message,
+          timestamp: Date.now()
+        });
+
+        if (TaskState.failedAttempts.length >= CONFIG.MAX_RETRIES) {
+          const currentUrl = agentState.currentUrl || action.url;
+          const alt = generateAlternativeStrategies(currentUrl, TaskState.plan.taskDefinition);
+          if (alt.length > 0) {
+            const altIndex = TaskState.failedAttempts.length % alt.length;
+            updateStatus(`Trying alternative: ${alt[altIndex].name}`);
+            addChatMessage(`Problems encountered; trying alternative: ${alt[altIndex].name}`);
+            await executeAction(alt[altIndex].action);
+          } else {
+            throw new Error('No more alternatives available');
+          }
+        }
+      }
+    }
+
+    function generateAlternativeStrategies(baseUrl, task) {
+      const strats = [];
+      try {
+        const url = new URL(baseUrl);
+        strats.push({
+          name: 'Homepage w/CORS proxy',
+          action: { type: 'goto', url: `${CONFIG.ORIGINAL_PROXY}${url.origin}` }
+        });
+        strats.push({
+          name: '/about',
+          action: { type: 'goto', url: resolveUrl(url.origin, '/about') }
+        });
+      } catch { }
+      return strats;
+    }
+
+    function resolveUrl(base, path) {
+      try {
+        if (path.startsWith('http')) return path;
+        const baseUrl = new URL(base);
+        return new URL(path, baseUrl.origin).toString();
+      } catch {
+        return base;
+      }
+    }
+
+    function findElementByText(container, searchText, options = { tag: 'a', threshold: 0.7 }) {
+      const data = TaskState.jinaResponse?.data;
+      const sim = (t1, t2) => {
+        const w1 = new Set(t1.toLowerCase().split(/\s+/));
+        const w2 = new Set(t2.toLowerCase().split(/\s+/));
+        const i = new Set([...w1].filter(x => w2.has(x)));
+        const u = new Set([...w1, ...w2]);
+        return i.size / u.size;
+      };
+      if (data?.links) {
+        const cands = Object.entries(data.links)
+          .map(([txt, u]) => ({ txt, u, similarity: sim(txt, searchText) }))
+          .filter(c => c.similarity >= options.threshold)
+          .sort((a, b) => b.similarity - a.similarity);
+        if (cands.length) {
+          const elts = container.getElementsByTagName(options.tag);
+          for (const cand of cands) {
+            for (const e of elts) {
+              if (e.href === cand.u || sim(e.textContent, cand.txt) >= options.threshold) {
+                return e;
+              }
+            }
+          }
+        }
+      }
+      const els = Array.from(container.getElementsByTagName(options.tag))
+        .map(e => ({
+          element: e,
+          similarity: sim(e.textContent, searchText)
+        }))
+        .filter(c => c.similarity >= options.threshold)
+        .sort((a, b) => b.similarity - a.similarity);
+      return els[0]?.element || null;
+    }
+
+    backBtn.onclick = () => {
+      if (currentHistoryIndex > 0) {
+        currentHistoryIndex--;
+        navigateTo(history[currentHistoryIndex]);
+      }
+    };
+    forwardBtn.onclick = () => {
+      if (currentHistoryIndex < history.length - 1) {
+        currentHistoryIndex++;
+        navigateTo(history[currentHistoryIndex]);
+      }
+    };
+    reloadBtn.onclick = () => {
+      if (agentState.currentUrl) navigateTo(agentState.currentUrl);
+    };
+    urlBar.onkeypress = (e) => {
+      if (e.key === 'Enter') navigateTo(urlBar.value);
+    };
+    sendBtn.onclick = () => {
+      const txt = userInput.value;
+      if (txt) {
+        handleUserInput(txt);
+        userInput.value = '';
+      }
+    };
+    userInput.onkeypress = (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    };
+
+    updateStatus('Navigate to a website and/or give the agent a task.');
+  </script>
+</body>
+
+</html>
