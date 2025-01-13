@@ -456,7 +456,7 @@ Available Links: {links}
     const backBtn = document.getElementById('backBtn');
     const forwardBtn = document.getElementById('forwardBtn');
     const reloadBtn = document.getElementById('reloadBtn');
-    const browserViewport = document.getElementById('browserViewport');
+    const browserViewport = document.getElementById('browser-viewport');
     const chatWindow = document.getElementById('chatWindow');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
@@ -661,11 +661,13 @@ If you cannot address the task with the available content, explain why.`;
 
       try {
 
-        debugLog(CONFIG.DEBUG.TYPES.INFO, {
-          message: 'Raw Jina Response Data',
-          jinaResponse: TaskState.jinaResponse,
-          links: TaskState.jinaResponse?.data?.links
-        });
+        if (TaskState.jinaResponse) {
+          debugLog(CONFIG.DEBUG.TYPES.INFO, {
+            message: 'Raw Jina Response Data',
+            jinaResponse: TaskState.jinaResponse,
+            links: TaskState.jinaResponse?.data?.links
+          });
+        }
 
         const stepContext = {
           taskDefinition: TaskState.plan.taskDefinition,
