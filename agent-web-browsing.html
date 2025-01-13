@@ -675,7 +675,6 @@ If you cannot address the task with the available content, explain why.`;
           currentStep: TaskState.plan.currentStep + 1,
           totalSteps: TaskState.plan.plannedSteps.length,
           currentUrl: agentState.currentUrl || 'No page loaded',
-          hasPageContent: !!browserViewport.innerHTML,
           actionHistory: TaskState.actionHistory.map(a => `${a.type}:${a.url || a.target || ''}`).join(', '),
           links: JSON.stringify(TaskState.jinaResponse?.data?.links || {}, null, 2)
         };
