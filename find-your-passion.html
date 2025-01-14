@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Find Your Passion</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <style>
     .journey-container {
       max-width: 800px;
@@ -37,6 +38,13 @@
 
     .question-container {
       margin-bottom: 2rem;
+    }
+
+    .question-label {
+      display: block;
+      margin-bottom: 0.75rem;
+      font-weight: 500;
+      color: #374151;
     }
 
     .options-grid {
@@ -77,6 +85,21 @@
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
+    .final-report h1, .final-report h2, .final-report h3 {
+      margin-top: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .final-report ul, .final-report ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .final-report p {
+      margin-bottom: 1rem;
+      line-height: 1.6;
+    }
+
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
@@ -113,7 +136,7 @@
     <div class="step" data-step="2">
       <h2>Understanding Your Driving Force</h2>
       <div class="question-container">
-        <p>Which of these statements resonates with you the most?</p>
+        <p class="question-label">Which of these statements resonates with you the most?</p>
         <div class="options-grid">
           <div class="option-card" data-need="certainty">
             <h3>Security & Comfort</h3>
@@ -151,18 +174,18 @@
     <div class="step" data-step="3">
       <h2>Childhood & Interests</h2>
       <div class="question-container">
+        <label class="question-label">What activities made you lose track of time as a child? What did you love doing just for fun?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="What activities made you lose track of time as a child? What did you love doing just for fun?"
           id="childhoodActivities"
         ></textarea>
       </div>
       <div class="question-container">
+        <label class="question-label">What books, movies, or topics can you talk about endlessly? What makes you excited to share with others?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="What books, movies, or topics can you talk about endlessly? What makes you excited to share with others?"
           id="interests"
         ></textarea>
       </div>
@@ -176,18 +199,18 @@
     <div class="step" data-step="4">
       <h2>Time & Patterns</h2>
       <div class="question-container">
+        <label class="question-label">How do you spend your free time now? What activities do you gravitate toward when you have no obligations?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="How do you spend your free time now? What activities do you gravitate toward when you have no obligations?"
           id="freeTime"
         ></textarea>
       </div>
       <div class="question-container">
+        <label class="question-label">What patterns or themes keep showing up in your life? What types of opportunities seem to find you?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="What patterns or themes keep showing up in your life? What types of opportunities seem to find you?"
           id="patterns"
         ></textarea>
       </div>
@@ -201,19 +224,18 @@
     <div class="step" data-step="5">
       <h2>Fears & Dreams</h2>
       <div class="question-container">
-        <p>The Rocking Chair Test</p>
+        <label class="question-label">The Rocking Chair Test: Imagine yourself at 90 years old, looking back on your life. What would you regret not trying? What dreams would you wish you had pursued?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="Imagine yourself at 90 years old, looking back on your life. What would you regret not trying? What dreams would you wish you had pursued?"
           id="rockingChair"
         ></textarea>
       </div>
       <div class="question-container">
+        <label class="question-label">What ideas or activities both excite and scare you? What would you try if you knew you couldn't fail?</label>
         <textarea 
           class="form-control" 
           rows="6" 
-          placeholder="What ideas or activities both excite and scare you? What would you try if you knew you couldn't fail?"
           id="fears"
         ></textarea>
       </div>
@@ -267,7 +289,7 @@
       3. Specific next steps and activities to try
       4. Resources or classes that might help
       
-      Format the response in clear sections with headers.`
+      Format the response using markdown with clear section headers (#), subheadings (##), and bullet points (*) for better readability.`
     };
 
     // State
@@ -298,7 +320,7 @@
 
       try {
         const response = await state.client.sendMessage(prompt);
-        return response;
+        return marked.parse(response);
       } catch (error) {
         console.error('Error generating insights:', error);
         return 'Error generating insights. Please try again.';
@@ -360,7 +382,7 @@
     };
 
     window.downloadReport = () => {
-      const report = document.getElementById('finalReport').innerHTML;
+      const report = document.getElementById('finalReport').innerText; // Use innerText to get plain text
       const blob = new Blob([report], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -392,6 +414,12 @@
           document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
           card.classList.add('selected');
         });
+      });
+
+      // Initialize marked options
+      marked.setOptions({
+        breaks: true,
+        gfm: true
       });
     });
   </script>
