@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Your Passion</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .journey-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .step {
+      display: none;
+    }
+
+    .step.active {
+      display: block;
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: #eee;
+      margin-bottom: 2rem;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--color-primary);
+      transition: width 0.3s ease;
+    }
+
+    .question-container {
+      margin-bottom: 2rem;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+
+    .option-card {
+      padding: 1rem;
+      border: var(--border-organic);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .option-card:hover {
+      border-color: var(--color-primary);
+      background: var(--color-primary-light);
+    }
+
+    .option-card.selected {
+      border-color: var(--color-primary);
+      background: var(--color-primary-light);
+    }
+
+    .navigation {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2rem;
+    }
+
+    .final-report {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .loader {
+      display: none;
+      text-align: center;
+      margin: 2rem 0;
+    }
+
+    .loader.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="journey-container">
+    <div class="progress-bar">
+      <div class="progress-fill" style="width: 0%"></div>
+    </div>
+
+    <!-- Step 1: Introduction -->
+    <div class="step active" data-step="1">
+      <h1>Find Your Passion</h1>
+      <p>Welcome to a journey of self-discovery. Through this guided experience, we'll help you uncover what truly drives you and identify potential passions that could shape your future.</p>
+      <p>Remember: This is about possibilities, not limitations. Be open, honest, and ready to explore.</p>
+      <div class="navigation">
+        <button class="btn btn-primary" onclick="nextStep()">Begin Journey</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Human Needs Assessment -->
+    <div class="step" data-step="2">
+      <h2>Understanding Your Driving Force</h2>
+      <div class="question-container">
+        <p>Which of these statements resonates with you the most?</p>
+        <div class="options-grid">
+          <div class="option-card" data-need="certainty">
+            <h3>Security & Comfort</h3>
+            <p>I prefer knowing what to expect and having a stable, predictable environment.</p>
+          </div>
+          <div class="option-card" data-need="variety">
+            <h3>Adventure & Change</h3>
+            <p>I thrive on new experiences and get bored with routine.</p>
+          </div>
+          <div class="option-card" data-need="significance">
+            <h3>Achievement & Recognition</h3>
+            <p>I want to make my mark and be acknowledged for my contributions.</p>
+          </div>
+          <div class="option-card" data-need="connection">
+            <h3>Connection & Love</h3>
+            <p>Building meaningful relationships is most important to me.</p>
+          </div>
+          <div class="option-card" data-need="growth">
+            <h3>Growth & Learning</h3>
+            <p>I'm constantly seeking to improve and develop new skills.</p>
+          </div>
+          <div class="option-card" data-need="contribution">
+            <h3>Giving & Contributing</h3>
+            <p>Making a difference in others' lives gives me purpose.</p>
+          </div>
+        </div>
+      </div>
+      <div class="navigation">
+        <button class="btn btn-secondary" onclick="previousStep()">Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Childhood & Interests -->
+    <div class="step" data-step="3">
+      <h2>Childhood & Interests</h2>
+      <div class="question-container">
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="What activities made you lose track of time as a child? What did you love doing just for fun?"
+          id="childhoodActivities"
+        ></textarea>
+      </div>
+      <div class="question-container">
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="What books, movies, or topics can you talk about endlessly? What makes you excited to share with others?"
+          id="interests"
+        ></textarea>
+      </div>
+      <div class="navigation">
+        <button class="btn btn-secondary" onclick="previousStep()">Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Time & Patterns -->
+    <div class="step" data-step="4">
+      <h2>Time & Patterns</h2>
+      <div class="question-container">
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="How do you spend your free time now? What activities do you gravitate toward when you have no obligations?"
+          id="freeTime"
+        ></textarea>
+      </div>
+      <div class="question-container">
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="What patterns or themes keep showing up in your life? What types of opportunities seem to find you?"
+          id="patterns"
+        ></textarea>
+      </div>
+      <div class="navigation">
+        <button class="btn btn-secondary" onclick="previousStep()">Back</button>
+        <button class="btn btn-primary" onclick="nextStep()">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Fears & Dreams -->
+    <div class="step" data-step="5">
+      <h2>Fears & Dreams</h2>
+      <div class="question-container">
+        <p>The Rocking Chair Test</p>
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="Imagine yourself at 90 years old, looking back on your life. What would you regret not trying? What dreams would you wish you had pursued?"
+          id="rockingChair"
+        ></textarea>
+      </div>
+      <div class="question-container">
+        <textarea 
+          class="form-control" 
+          rows="6" 
+          placeholder="What ideas or activities both excite and scare you? What would you try if you knew you couldn't fail?"
+          id="fears"
+        ></textarea>
+      </div>
+      <div class="navigation">
+        <button class="btn btn-secondary" onclick="previousStep()">Back</button>
+        <button class="btn btn-primary" onclick="generateReport()">Generate Insights</button>
+      </div>
+    </div>
+
+    <!-- Final Report -->
+    <div class="step" data-step="6">
+      <h2>Your Passion Insights</h2>
+      <div class="loader">
+        <p>Analyzing your responses...</p>
+      </div>
+      <div class="final-report" id="finalReport"></div>
+      <div class="navigation">
+        <button class="btn btn-secondary" onclick="previousStep()">Back</button>
+        <button class="btn btn-primary" onclick="downloadReport()">Download Report</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { LLMClient } from './llm-client.js';
+
+    // Config
+    const CONFIG = {
+      TOTAL_STEPS: 6,
+      PROMPT_TEMPLATE: `Based on the user's responses, analyze their potential passions and provide specific suggestions. Here are their answers:
+
+      Top Human Need: {need}
+
+      Childhood Activities & Interests:
+      {childhood}
+
+      Current Interests:
+      {interests}
+
+      Free Time & Patterns:
+      {freeTime}
+      {patterns}
+
+      Future Dreams & Fears:
+      {rockingChair}
+      {fears}
+
+      Please provide:
+      1. Key patterns and themes you notice
+      2. Potential passion areas to explore
+      3. Specific next steps and activities to try
+      4. Resources or classes that might help
+      
+      Format the response in clear sections with headers.`
+    };
+
+    // State
+    const state = {
+      currentStep: 1,
+      answers: {
+        need: '',
+        childhood: '',
+        interests: '',
+        freeTime: '',
+        patterns: '',
+        rockingChair: '',
+        fears: ''
+      },
+      client: new LLMClient()
+    };
+
+    // Core Functions
+    async function generateInsightsReport() {
+      const prompt = CONFIG.PROMPT_TEMPLATE
+        .replace('{need}', state.answers.need)
+        .replace('{childhood}', state.answers.childhood)
+        .replace('{interests}', state.answers.interests)
+        .replace('{freeTime}', state.answers.freeTime)
+        .replace('{patterns}', state.answers.patterns)
+        .replace('{rockingChair}', state.answers.rockingChair)
+        .replace('{fears}', state.answers.fears);
+
+      try {
+        const response = await state.client.sendMessage(prompt);
+        return response;
+      } catch (error) {
+        console.error('Error generating insights:', error);
+        return 'Error generating insights. Please try again.';
+      }
+    }
+
+    // UI Handlers
+    window.nextStep = () => {
+      if (state.currentStep === 2) {
+        const selectedCard = document.querySelector('.option-card.selected');
+        if (!selectedCard) {
+          alert('Please select an option before continuing.');
+          return;
+        }
+        state.answers.need = selectedCard.dataset.need;
+      }
+
+      if (state.currentStep === 3) {
+        state.answers.childhood = document.getElementById('childhoodActivities').value;
+        state.answers.interests = document.getElementById('interests').value;
+      }
+
+      if (state.currentStep === 4) {
+        state.answers.freeTime = document.getElementById('freeTime').value;
+        state.answers.patterns = document.getElementById('patterns').value;
+      }
+
+      if (state.currentStep === 5) {
+        state.answers.rockingChair = document.getElementById('rockingChair').value;
+        state.answers.fears = document.getElementById('fears').value;
+      }
+
+      if (state.currentStep < CONFIG.TOTAL_STEPS) {
+        state.currentStep++;
+        updateUI();
+      }
+    };
+
+    window.previousStep = () => {
+      if (state.currentStep > 1) {
+        state.currentStep--;
+        updateUI();
+      }
+    };
+
+    window.generateReport = async () => {
+      const loader = document.querySelector('.loader');
+      const report = document.getElementById('finalReport');
+      
+      loader.classList.add('active');
+      report.innerHTML = '';
+      
+      nextStep(); // Move to final step
+      
+      const insights = await generateInsightsReport();
+      
+      loader.classList.remove('active');
+      report.innerHTML = insights;
+    };
+
+    window.downloadReport = () => {
+      const report = document.getElementById('finalReport').innerHTML;
+      const blob = new Blob([report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'passion-insights.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    function updateUI() {
+      // Update progress bar
+      const progress = ((state.currentStep - 1) / (CONFIG.TOTAL_STEPS - 1)) * 100;
+      document.querySelector('.progress-fill').style.width = `${progress}%`;
+
+      // Show active step
+      document.querySelectorAll('.step').forEach(step => {
+        step.classList.remove('active');
+      });
+      document.querySelector(`[data-step="${state.currentStep}"]`).classList.add('active');
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      // Set up option card selection
+      document.querySelectorAll('.option-card').forEach(card => {
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+        });
+      });
+    });
+  </script>
+</body>
+</html>
