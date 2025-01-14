@@ -20,6 +20,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+[Web Browser Agent](https://lab.simonwisdom.com/agent-web-browsing) - A hobbled web browsing agent demo
+
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
 
 [Pixel Wave v2](https://lab.simonwisdom.com/pixel-wave-audioreactive) - An audioreactive version

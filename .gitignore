@@ -3,4 +3,6 @@
 /proxy/server.js
 /proxy/public/
 /proxy/api/gemini-proxy-local.js
+/proxy/api/browser-proxy-local.js
+/proxy/api/browser-proxy.js
 /js/llm-client-local.js

@@ -8,7 +8,6 @@
   <script type="module" src="js/common.js"></script>
 
   <style>
-    /* Layout-specific styles that don't exist in style.css */
     .main-layout {
       display: grid;
       grid-template-areas:
@@ -22,7 +21,6 @@
       height: 100vh;
     }
 
-    /* Toolbar */
     .browser-toolbar {
       grid-area: toolbar;
       display: flex;
@@ -63,7 +61,6 @@
       box-shadow: 0 0 0 4px var(--color-primary-light);
     }
 
-    /* Viewport */
     .viewport-container {
       grid-area: viewport;
       position: relative;
@@ -85,13 +82,6 @@
       overflow-y: auto;
     }
 
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
-    /* Status Toast */
     .status-toast {
       position: absolute;
       bottom: 1rem;
@@ -106,7 +96,6 @@
       transition: opacity 0.3s ease;
     }
 
-    /* Panels */
     .info-panel-container {
       grid-area: panels;
       display: flex;
@@ -151,7 +140,6 @@
       border-bottom: 2px solid var(--color-primary);
     }
 
-    /* Chat Controls */
     .chat-controls {
       grid-area: input;
       display: flex;
@@ -195,7 +183,6 @@
       transform: translateY(-1px);
     }
 
-    /* Links Panel */
     .link-item {
       padding: 0.5rem;
       border-bottom: 1px solid #eee;
@@ -222,7 +209,6 @@
       display: block;
     }
 
-    /* Debug Panel */
     .debug-entry {
       margin-bottom: 0.5rem;
       padding: 0.5rem;
@@ -256,7 +242,6 @@
       margin-top: 0.5rem;
     }
 
-    /* Chat Area */
     .chat-window {
       height: 150px;
       overflow-y: auto;
@@ -280,15 +265,11 @@
       margin-right: auto;
     }
 
-    /* Overrides for specific components */
     .btn {
       padding: 0.5rem 1rem;
-      /* Reduced from 0.875rem 1.75rem */
       font-size: 0.875rem;
-      /* Reduced from 1rem */
     }
 
-    /* Utility overrides */
     .collapsed {
       display: none;
     }
@@ -304,13 +285,21 @@
     .info-panel-container footer {
       margin-top: auto;
     }
+
+    .sandboxed-container {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+    }
   </style>
 </head>
 
 <body>
   <div class="main-layout">
     <h1>Agentic Web Browsing</h1>
-
 
     <div class="viewport-container">
       <div id="browserViewport" class="browser-viewport">
@@ -322,7 +311,7 @@
         </div>
         <div class="card">
           <h2>Welcome!</h2>
-          <p>The browser viewport will show the current webpage being viewed by the agent.</p>
+          <p>This viewport displays only the raw HTML.</p>
         </div>
       </div>
       <div id="statusToast" class="status-toast"></div>
@@ -334,19 +323,15 @@
         <button class="panel-tab" data-panel="links">Links</button>
         <button class="panel-tab" data-panel="debug">Debug</button>
       </div>
-
       <div id="chatPanel" class="panel-content active">
-        <div id="chatWindow"></div>
+        <div id="chatWindow" class="chat-window"></div>
       </div>
-
       <div id="linksPanel" class="panel-content">
         <!-- Links will be inserted here -->
       </div>
-
       <div id="debugPanel" class="panel-content">
         <!-- Debug entries will be inserted here -->
       </div>
-
       <footer>
         <!-- footer content -->
       </footer>
@@ -354,9 +339,7 @@
 
     <div class="chat-controls">
       <input type="text" class="chat-input" id="userInput" placeholder="Type your instructions...">
-      <button class="send-button" id="sendBtn">
-        Send
-      </button>
+      <button class="send-button" id="sendBtn">Send</button>
     </div>
   </div>
 
@@ -364,6 +347,9 @@
     import { LLMClient } from './js/llm-client.js';
     const llm = new LLMClient();
 
+    // -----------------------------------
+    // State + Configuration
+    // -----------------------------------
     const TaskState = {
       plan: null,
       actionHistory: [],
@@ -383,15 +369,6 @@
 
     const CONFIG = {
       MAX_RETRIES: 3,
-      JINA_PREFIX: 'https://r.jina.ai/',
-      ORIGINAL_PROXY: 'https://lab-proxy.vercel.app/api/proxy?url=',
-      JINA_HEADERS: {
-        // 'Accept': 'application/json',
-        'Accept': 'text/event-stream', // aloow js to load
-        'Authorization': 'Bearer jina_98f5359b8ac94d8f81da80ce4e0fdd192mA17qpogTYwvkIrTPWJ6Qej-xn3',
-        'X-Retain-Images': 'none',
-        'X-With-Links-Summary': 'true'
-      },
       MAX_REPEAT_ACTIONS: 3,
       NAVIGATION_KEYWORDS: {
         BACK: ['previous page', 'go back', 'last page'],
@@ -465,21 +442,22 @@ Available Links: {links}
 `,
     };
 
+    // DOM Refs
     const urlBar = document.getElementById('urlBar');
     const backBtn = document.getElementById('backBtn');
     const forwardBtn = document.getElementById('forwardBtn');
     const reloadBtn = document.getElementById('reloadBtn');
-    const browserViewport = document.getElementById('browser-viewport');
     const chatWindow = document.getElementById('chatWindow');
     const userInput = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
-
+    const agentState = { currentUrl: null, currentPage: null, actionHistory: [] };
     let history = [];
     let currentHistoryIndex = -1;
-    const agentState = { currentUrl: null, currentPage: null, actionHistory: [] };
-
-    // Status toast helpers
     let statusTimeout;
+
+    // -----------------------------------
+    // Status / debug logs
+    // -----------------------------------
     function showStatusToast(message) {
       const toast = document.getElementById('statusToast');
       toast.textContent = message;
@@ -490,13 +468,11 @@ Available Links: {links}
       }, 3000);
     }
 
-    // Single unified updateStatus
     function updateStatus(message) {
       showStatusToast(message);
       debugLog(CONFIG.DEBUG.TYPES.INFO, 'Status: ' + message);
     }
 
-    // Single unified debugLog referencing the existing debugPanel
     function debugLog(type, content) {
       if (!CONFIG.DEBUG.ENABLED) return;
       const debugPanel = document.getElementById('debugPanel');
@@ -504,7 +480,6 @@ Available Links: {links}
 
       const entry = document.createElement('div');
       entry.className = 'debug-entry';
-
       const timestamp = new Date().toLocaleTimeString();
 
       let formattedContent;
@@ -521,44 +496,25 @@ Available Links: {links}
       }
 
       entry.innerHTML = `
-    <div class="debug-type">
-      ${type}
-      <span class="debug-timestamp">${timestamp}</span>
-    </div>
-    <div class="debug-content">
-      ${formattedContent}
-    </div>
-  `;
+        <div class="debug-type">
+          ${type}
+          <span class="debug-timestamp">${timestamp}</span>
+        </div>
+        <div class="debug-content">
+          ${formattedContent}
+        </div>
+      `;
 
       debugPanel.insertBefore(entry, debugPanel.firstChild);
-
       while (debugPanel.children.length > CONFIG.DEBUG.MAX_ENTRIES) {
         debugPanel.removeChild(debugPanel.lastChild);
       }
     }
 
-    // Simplified version of updateJsonView
-    function updateJsonView() {
-      const linksPanel = document.getElementById('linksPanel');
-      const links = TaskState.jinaResponse?.data?.links;
-
-      if (!links || Object.keys(links).length === 0) {
-        linksPanel.innerHTML = '<div class="status">No links available</div>';
-        return;
-      }
-
-      linksPanel.innerHTML = Object.entries(links)
-        .map(([text, url]) => `
-          <div class="link-item">
-            <div class="link-text">${text}</div>
-            <div class="link-url">${url}</div>
-          </div>
-        `).join('');
-    }
-
+    // -----------------------------------
     // Panel tabs
+    // -----------------------------------
     document.addEventListener('DOMContentLoaded', () => {
-      // Ensure chat tab and panel are active by default
       document.querySelectorAll('.panel-tab').forEach(tab => {
         tab.classList.remove('active');
         if (tab.dataset.panel === 'chat') {
@@ -572,7 +528,6 @@ Available Links: {links}
         }
       });
 
-      // Add click handlers for tabs
       document.querySelectorAll('.panel-tab').forEach(tab => {
         tab.addEventListener('click', () => {
           document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
@@ -583,6 +538,9 @@ Available Links: {links}
       });
     });
 
+    // -----------------------------------
+    // Chat
+    // -----------------------------------
     function addChatMessage(message, isUser = false) {
       const m = document.createElement('div');
       m.className = `chat-message ${isUser ? 'user-message' : 'agent-message'}`;
@@ -591,6 +549,19 @@ Available Links: {links}
       chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
+    sendBtn.onclick = () => {
+      const txt = userInput.value;
+      if (!txt) return;
+      handleUserInput(txt);
+      userInput.value = '';
+    };
+    userInput.onkeypress = (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    };
+
+    // -----------------------------------
+    // Main Task Flow
+    // -----------------------------------
     async function handleUserInput(input) {
       addChatMessage(input, true);
       userInput.disabled = true;
@@ -610,10 +581,14 @@ Available Links: {links}
     async function initializeTask(input) {
       TaskState.reset();
       try {
+
+
         const planningPrompt = CONFIG.PLAN_TEMPLATE.replace('{userInput}', input);
         const planResponse = await llm.sendMessage(planningPrompt);
+
         let jsonMatch = planResponse.match(/\{[\s\S]*?\}/);
         if (!jsonMatch) throw new Error('No valid JSON in response');
+
         try {
           TaskState.plan = JSON.parse(jsonMatch[0]);
         } catch (e) {
@@ -626,21 +601,20 @@ Available Links: {links}
             .replace(/['']/g, "'")
             .replace(/,(\s*[}\]])/g, '$1')
             .replace(/\u200B/g, '');
-          try {
-            TaskState.plan = JSON.parse(cleaned);
-          } catch (secondError) {
-            console.error('Original parse error:', e);
-            console.error('Cleanup parse error:', secondError);
-            console.error('Cleaned JSON string:', cleaned);
-            throw new Error('Could not parse plan JSON: ' + secondError.message);
-          }
+          TaskState.plan = JSON.parse(cleaned);
         }
+
         if (!TaskState.plan || !TaskState.plan.taskDefinition) {
           throw new Error('Invalid plan format');
         }
         addChatMessage(`📋 Plan: ${TaskState.plan.taskDefinition}`);
-        addChatMessage(`✓ Success Criteria:\n${TaskState.plan.successCriteria.map(c => '- ' + c).join('\n')}`);
+        addChatMessage(
+          `✓ Success Criteria:\n` +
+          TaskState.plan.successCriteria.map(c => '- ' + c).join('\n')
+        );
+
         await executeNextStep();
+
       } catch (e) {
         console.error(e);
         updateStatus(`Failed to init: ${e.message}`);
@@ -651,7 +625,7 @@ Available Links: {links}
     async function executeNextStep() {
       if (TaskState.taskComplete) return;
 
-      // Prevent loops of the same action
+
       const lastActions = TaskState.actionHistory.slice(-2);
       if (
         lastActions.length === 2 &&
@@ -673,15 +647,6 @@ If you cannot address the task with the available content, explain why.`;
       }
 
       try {
-
-        if (TaskState.jinaResponse) {
-          debugLog(CONFIG.DEBUG.TYPES.INFO, {
-            message: 'Raw Jina Response Data',
-            jinaResponse: TaskState.jinaResponse,
-            links: TaskState.jinaResponse?.data?.links
-          });
-        }
-
         const stepContext = {
           taskDefinition: TaskState.plan.taskDefinition,
           successCriteria: TaskState.plan.successCriteria.join(', '),
@@ -689,25 +654,53 @@ If you cannot address the task with the available content, explain why.`;
           totalSteps: TaskState.plan.plannedSteps.length,
           currentUrl: agentState.currentUrl || 'No page loaded',
           actionHistory: TaskState.actionHistory.map(a => `${a.type}:${a.url || a.target || ''}`).join(', '),
-          links: JSON.stringify(TaskState.jinaResponse?.data?.links || {}, null, 2)
+          links: Object.entries(TaskState.jinaResponse?.data?.links || {})
+            .map(([text, url]) => `"${text}" -> ${url}`)
+            .join('\n')
         };
 
-        // Debug log the step context
         debugLog(CONFIG.DEBUG.TYPES.INFO, {
           message: 'Step Context',
           context: stepContext
         });
 
         let stepPrompt = CONFIG.STEP_TEMPLATE;
+        // console.log('Pre-substitution prompt template:', {
+        //   template: stepPrompt,
+        //   linkPlaceholder: stepPrompt.includes('{links}')
+        // });
+
         for (const [k, v] of Object.entries(stepContext)) {
+          const oldPrompt = stepPrompt;
           stepPrompt = stepPrompt.replace(`{${k}}`, v);
+
+          // Debug each substitution
+          // if (k === 'links') {
+          //   console.log('Links substitution:', {
+          //     key: k,
+          //     valueType: typeof v,
+          //     valueLength: v.split('\n').length,
+          //     beforeLength: oldPrompt.length,
+          //     afterLength: stepPrompt.length,
+          //     substitutionMade: oldPrompt !== stepPrompt,
+          //     value: v
+          //   });
+          // }
         }
 
-        // generate dubug log including the prompt and the analysis
         debugLog(CONFIG.DEBUG.TYPES.INFO, { prompt: stepPrompt });
+
+        // // Debug link state before step execution
+        // console.log('Current link state:', {
+        //   jinaResponse: TaskState.jinaResponse,
+        //   hasLinks: !!TaskState.jinaResponse?.data?.links,
+        //   linkCount: Object.keys(TaskState.jinaResponse?.data?.links || {}).length,
+        //   links: TaskState.jinaResponse?.data?.links
+        // });
 
         const stepResponse = await llm.sendMessage(stepPrompt);
         addChatMessage(stepResponse);
+
         const actions = parseAgentActions(stepResponse);
         if (actions.length > 0) {
           updateStatus(`Executing step ${stepContext.currentStep}/${stepContext.totalSteps}`);
@@ -730,129 +723,141 @@ If you cannot address the task with the available content, explain why.`;
       }
     }
 
+    // -----------------------------------
+    // Fetch + Display Page
+    // -----------------------------------
     async function navigateTo(url) {
-      debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Attempting navigation', url: url });
-
+      debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Attempting navigation', url });
       const validUrl = validateAndFormatUrl(url);
-      if (!validUrl) {
-        throw new Error(`Invalid URL: ${url}`);
-      }
+      if (!validUrl) throw new Error(`Invalid URL: ${url}`);
 
       try {
-        // Display the clean URL in the URL bar (without proxy)
         urlBar.value = validUrl;
         agentState.currentUrl = validUrl;
 
-        // Add proxy prefix for actual fetch
-        const proxyUrl = CONFIG.ORIGINAL_PROXY + encodeURIComponent(validUrl);
+        const response = await fetch(validUrl);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        // Try Jina API with retries
-        let jinaRes;
-        for (let i = 0; i < 3; i++) {
-          try {
-            jinaRes = await fetch(CONFIG.JINA_PREFIX + validUrl, {
-              headers: CONFIG.JINA_HEADERS
-            });
-            if (jinaRes.ok) break;
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-          } catch (e) {
-            if (i === 2) throw e;
-          }
-        }
+        const contentType = response.headers.get('content-type') || 'text/plain';
+        const content = await response.text();
 
-        if (!jinaRes.ok) {
-          throw new Error(`Jina error: ${jinaRes.status}`);
-        }
-
-        TaskState.jinaResponse = await jinaRes.json();
-        updateJsonView();
-
-        // Fetch original page content with proxy (optional for text extraction/logging)
-        try {
-          const origRes = await fetch(proxyUrl);
-          if (origRes.ok) {
-            const html = await origRes.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            // Keep <script> tags intact
-            // Optional: Process this `doc` if needed for agent tasks
-          }
-        } catch (e) {
-          debugLog(CONFIG.DEBUG.TYPES.ERROR, {
-            message: 'Fallback content fetch failed',
-            error: e.message
-          });
-        }
-
-        // Use an iframe in the viewport to allow safe JS execution
         const viewport = document.getElementById('browserViewport');
-        if (viewport) {
-          // Preserve the toolbar before clearing
-          const toolbar = viewport.querySelector('.browser-toolbar');
-          // Clear the viewport
-          viewport.innerHTML = '';
-          // If there was a toolbar, re-insert it
-          if (toolbar) {
-            viewport.appendChild(toolbar);
-          }
+        if (!viewport) throw new Error('Viewport not found');
+        const toolbar = viewport.querySelector('.browser-toolbar');
 
-          // Create an iframe to display the page
-          const iframe = document.createElement('iframe');
-          iframe.src = CONFIG.ORIGINAL_PROXY + encodeURIComponent(validUrl); // Set iframe source to the validated URL
-          iframe.style.width = '100%'; // Full width
-          iframe.style.height = '100%'; // Full height
-          iframe.style.border = 'none'; // No border
-          iframe.sandbox = 'allow-scripts allow-same-origin'; // Restrict iframe permissions
+        viewport.innerHTML = '';
+        if (toolbar) viewport.appendChild(toolbar);
 
-          viewport.appendChild(iframe);
+        if (!TaskState.jinaResponse) TaskState.jinaResponse = { data: {} };
+        if (!TaskState.jinaResponse.data) TaskState.jinaResponse.data = {};
+
+        if (contentType.includes('text/html')) {
+          // Parse the HTML
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(content, 'text/html');
+          doc.querySelectorAll('script').forEach(scr => scr.remove());
+
+          // Resolve links against the base URL
+          const baseUrl = new URL(validUrl);
+          const links = {};
+          doc.querySelectorAll('a').forEach(link => {
+            const text = link.textContent.trim();
+            const hrefAttr = link.getAttribute('href') || '';
+            if (text && hrefAttr) {
+              // Construct absolute URL
+              const absoluteUrl = new URL(hrefAttr, baseUrl).href;
+              links[text] = absoluteUrl;
+            }
+          });
+          TaskState.jinaResponse.data.links = links;
+          updateJsonView(links);
+
+          // Insert sanitized HTML
+          const container = document.createElement('div');
+          container.className = 'sandboxed-container';
+          container.innerHTML = doc.body.innerHTML;
+          viewport.appendChild(container);
+
+        } else {
+          // Non-HTML content
+          const pre = document.createElement('pre');
+          pre.textContent = content;
+          viewport.appendChild(pre);
+
+          TaskState.jinaResponse.data.links = {};
+          updateJsonView({});
         }
 
-        // Update history
         if (currentHistoryIndex < history.length - 1) {
           history = history.slice(0, currentHistoryIndex + 1);
         }
         history.push(validUrl);
         currentHistoryIndex++;
-
         backBtn.disabled = (currentHistoryIndex === 0);
         forwardBtn.disabled = (currentHistoryIndex === history.length - 1);
 
         updateStatus(`Navigated to ${validUrl}`);
-        updateJsonView();
         return true;
       } catch (e) {
         console.error(e);
         updateStatus(`Failed to navigate: ${e.message}`);
-        debugLog(CONFIG.DEBUG.TYPES.ERROR, {
-          message: e.message,
-          stack: e.stack
-        });
+        debugLog(CONFIG.DEBUG.TYPES.ERROR, { message: e.message, stack: e.stack });
         return false;
       }
     }
 
     async function extractPageContent() {
-      let content = '';
+      debugLog(CONFIG.DEBUG.TYPES.INFO, {
+        message: 'Starting content extraction',
+        jinaResponseExists: !!TaskState.jinaResponse,
+        jinaDataExists: !!TaskState.jinaResponse?.data,
+      });
 
-      // Try Jina content first
-      if (TaskState.jinaResponse?.data?.content) {
-        content = TaskState.jinaResponse.data.content;
+      let content = TaskState.jinaResponse?.data?.content || '';
+      if (content && content.length >= CONFIG.CONTENT_EXTRACTION.MIN_LENGTH) {
+        return content;
       }
 
-      // Fallback: Extract from viewport if Jina content is too short
-      if (!content || content.length < CONFIG.CONTENT_EXTRACTION.MIN_LENGTH) {
-        const viewport = document.getElementById('browserViewport');
-        if (viewport) {
-          // Remove script tags and extract text
-          const clone = viewport.cloneNode(true);
-          clone.querySelectorAll('script, style').forEach(el => el.remove());
-          content = clone.textContent.replace(/\s+/g, ' ').trim();
+      const viewport = document.getElementById('browserViewport');
+      if (!viewport) throw new Error('Viewport not found');
+      const container = viewport.querySelector('.sandboxed-container');
+      if (!container) {
+        debugLog(CONFIG.DEBUG.TYPES.INFO, 'No sandboxed container found, returning empty content');
+        return '';
+      }
+
+      const clone = container.cloneNode(true);
+      clone.querySelectorAll('script, style').forEach(el => el.remove());
+      content = clone.textContent.replace(/\s+/g, ' ').trim();
+
+      // Resolve links against the current URL
+      const baseUrl = new URL(agentState.currentUrl);
+      const links = {};
+      clone.querySelectorAll('a').forEach(link => {
+        const text = link.textContent.trim();
+        const hrefAttr = link.getAttribute('href') || '';
+        if (text && hrefAttr) {
+          const absoluteUrl = new URL(hrefAttr, baseUrl).href;
+          links[text] = absoluteUrl;
         }
-      }
+      });
 
+      if (!TaskState.jinaResponse) TaskState.jinaResponse = { data: {} };
+      if (!TaskState.jinaResponse.data) TaskState.jinaResponse.data = {};
+      TaskState.jinaResponse.data.links = links;
+      updateJsonView(links);
+
+      debugLog(CONFIG.DEBUG.TYPES.INFO, {
+        message: 'Extracted from DOM',
+        contentLength: content.length,
+        numberOfLinks: Object.keys(links).length,
+        links
+      });
       return content;
     }
-
+    // -----------------------------------
+    // Action Handling
+    // -----------------------------------
     function parseAgentActions(response) {
       const actions = [];
       try {
@@ -897,70 +902,20 @@ If you cannot address the task with the available content, explain why.`;
       throw lastErr;
     }
 
-    function validateAndFormatUrl(url) {
-      if (!url) return null;
-
-      // Handle navigation keywords
-      if (typeof url === 'string') {
-        const urlLower = url.toLowerCase();
-
-        // Handle "previous page"
-        if (CONFIG.NAVIGATION_KEYWORDS.BACK.some(keyword => urlLower.includes(keyword))) {
-          if (currentHistoryIndex > 0) {
-            return history[currentHistoryIndex - 1];
-          }
-          return null;
-        }
-
-        // Handle "next page"
-        if (CONFIG.NAVIGATION_KEYWORDS.FORWARD.some(keyword => urlLower.includes(keyword))) {
-          if (currentHistoryIndex < history.length - 1) {
-            return history[currentHistoryIndex + 1];
-          }
-          return null;
-        }
-
-        // Handle "home page"
-        if (CONFIG.NAVIGATION_KEYWORDS.HOME.some(keyword => urlLower.includes(keyword))) {
-          try {
-            const currentUrl = new URL(agentState.currentUrl);
-            return currentUrl.origin;
-          } catch {
-            return null;
-          }
-        }
-      }
-
-      // Add https if needed
-      if (!/^https?:\/\//i.test(url)) {
-        url = 'https://' + url;
-      }
-
-      try {
-        new URL(url);
-        return url;
-      } catch {
-        return null;
-      }
-    }
-
     async function executeAction(action) {
       debugLog(CONFIG.DEBUG.TYPES.ACTION, { type: action.type, details: action });
-
       if (!action || !action.type) {
         debugLog(CONFIG.DEBUG.TYPES.ERROR, 'Invalid action');
         updateStatus('Invalid action');
         return;
       }
 
-      // Check for action loops
       const recentActions = TaskState.actionHistory.slice(-CONFIG.MAX_REPEAT_ACTIONS);
       const repeatedCount = recentActions.filter(a =>
         a.type === action.type &&
         a.url === action.url &&
         a.target === action.target
       ).length;
-
       if (repeatedCount >= CONFIG.MAX_REPEAT_ACTIONS) {
         throw new Error(`Action ${action.type} repeated too many times`);
       }
@@ -973,25 +928,22 @@ If you cannot address the task with the available content, explain why.`;
               TaskState.extractedContent = content;
               addChatMessage(`Found the following content:\n${content.slice(0, 1000)}...`);
 
-              // Build context for the analysis
               const stepContext = {
                 taskDefinition: TaskState.plan.taskDefinition,
                 successCriteria: TaskState.plan.successCriteria.join(', '),
                 currentStep: TaskState.plan.currentStep + 1,
                 totalSteps: TaskState.plan.plannedSteps.length,
                 currentUrl: agentState.currentUrl || 'No page loaded',
-                hasPageContent: !!browserViewport.innerHTML,
+                hasPageContent: !!document.getElementById('browserViewport').innerHTML,
                 actionHistory: TaskState.actionHistory.map(a => `${a.type}:${a.url || a.target || ''}`).join(', '),
                 links: TaskState.jinaResponse?.data?.links || {}
               };
 
-              // Replace context variables in template
               let analysisPrompt = CONFIG.ANALYSIS_TEMPLATE;
               for (const [k, v] of Object.entries(stepContext)) {
                 analysisPrompt = analysisPrompt.replace(`{${k}}`, v);
               }
 
-              // Add extracted content to prompt
               analysisPrompt += `\nExtracted content from ${agentState.currentUrl}:\n"${content.slice(0, 2000)}"\n\n`;
               analysisPrompt += `Based on this content and the original task/goal, either:
 1. Provide an analysis that addresses the task if you found relevant information
@@ -1001,12 +953,7 @@ If you cannot address the task with the available content, explain why.`;
 Format your response as a regular message without any JSON actions if you've found what's needed,
 or use the standard action format if more investigation is needed.`;
 
-              // Log for debugging
-              debugLog(CONFIG.DEBUG.TYPES.INFO, {
-                context: stepContext,
-                prompt: analysisPrompt
-              });
-
+              debugLog(CONFIG.DEBUG.TYPES.INFO, { context: stepContext, prompt: analysisPrompt });
               const analysis = await llm.sendMessage(analysisPrompt);
               addChatMessage(analysis);
 
@@ -1021,25 +968,19 @@ or use the standard action format if more investigation is needed.`;
           }
           case 'click': {
             const links = TaskState.jinaResponse?.data?.links || {};
-            debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Available Jina links', links: links });
+            debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Available links', links: links });
             if (action.target) {
               const linkEntries = Object.entries(links);
-              const match = linkEntries.find(([text, url]) =>
+              const match = linkEntries.find(([text]) =>
                 text.toLowerCase().includes(action.target.toLowerCase()) ||
                 action.target.toLowerCase().includes(text.toLowerCase())
               );
-              debugLog(CONFIG.DEBUG.TYPES.INFO, {
-                message: 'Link matching result',
-                target: action.target,
-                matchFound: !!match,
-                matchDetails: match
-              });
               if (match) {
                 await navigateTo(match[1]);
-                updateStatus(`Clicked Jina link: ${match[0]}`);
+                updateStatus(`Clicked link: ${match[0]}`);
               } else {
-                // Fallback to actual DOM
-                let element = findElementByText(browserViewport, action.target);
+                // Fallback: try to find a DOM element by text
+                let element = findElementByText(document.getElementById('browserViewport'), action.target);
                 if (element) {
                   if (element.href) {
                     await navigateTo(element.href);
@@ -1066,7 +1007,7 @@ or use the standard action format if more investigation is needed.`;
           }
           case 'type': {
             if (action.target && action.text) {
-              const inp = browserViewport.querySelector(action.target);
+              const inp = document.getElementById('browserViewport').querySelector(action.target);
               if (inp) {
                 inp.value = action.text;
                 updateStatus(`Typed "${action.text}"`);
@@ -1078,11 +1019,11 @@ or use the standard action format if more investigation is needed.`;
             }
             break;
           }
-
           default:
             updateStatus(`Unknown action: ${action.type}`);
         }
         agentState.actionHistory.push(action);
+        TaskState.actionHistory.push(action);
       } catch (e) {
         debugLog(CONFIG.DEBUG.TYPES.ERROR, {
           message: e.message,
@@ -1097,48 +1038,15 @@ or use the standard action format if more investigation is needed.`;
         });
 
         if (TaskState.failedAttempts.length >= CONFIG.MAX_RETRIES) {
-          const currentUrl = agentState.currentUrl || action.url;
-          const alt = generateAlternativeStrategies(currentUrl, TaskState.plan.taskDefinition);
-          if (alt.length > 0) {
-            const altIndex = TaskState.failedAttempts.length % alt.length;
-            updateStatus(`Trying alternative: ${alt[altIndex].name}`);
-            addChatMessage(`Problems encountered; trying alternative: ${alt[altIndex].name}`);
-            await executeAction(alt[altIndex].action);
-          } else {
-            throw new Error('No more alternatives available');
-          }
+          updateStatus(`Reached max failures for action: ${action.type}`);
         }
       }
     }
 
-    function generateAlternativeStrategies(baseUrl, task) {
-      const strats = [];
-      try {
-        const url = new URL(baseUrl);
-        strats.push({
-          name: 'Homepage w/CORS proxy',
-          action: { type: 'goto', url: `${CONFIG.ORIGINAL_PROXY}${url.origin}` }
-        });
-        strats.push({
-          name: '/about',
-          action: { type: 'goto', url: resolveUrl(url.origin, '/about') }
-        });
-      } catch { }
-      return strats;
-    }
-
-    function resolveUrl(base, path) {
-      try {
-        if (path.startsWith('http')) return path;
-        const baseUrl = new URL(base);
-        return new URL(path, baseUrl.origin).toString();
-      } catch {
-        return base;
-      }
-    }
-
+    // -----------------------------------
+    // Misc Helpers
+    // -----------------------------------
     function findElementByText(container, searchText, options = { tag: 'a', threshold: 0.7 }) {
-      const data = TaskState.jinaResponse?.data;
       const sim = (t1, t2) => {
         const w1 = new Set(t1.toLowerCase().split(/\s+/));
         const w2 = new Set(t2.toLowerCase().split(/\s+/));
@@ -1146,32 +1054,85 @@ or use the standard action format if more investigation is needed.`;
         const u = new Set([...w1, ...w2]);
         return i.size / u.size;
       };
-      if (data?.links) {
-        const cands = Object.entries(data.links)
-          .map(([txt, u]) => ({ txt, u, similarity: sim(txt, searchText) }))
-          .filter(c => c.similarity >= options.threshold)
-          .sort((a, b) => b.similarity - a.similarity);
-        if (cands.length) {
-          const elts = container.getElementsByTagName(options.tag);
-          for (const cand of cands) {
-            for (const e of elts) {
-              if (e.href === cand.u || sim(e.textContent, cand.txt) >= options.threshold) {
-                return e;
-              }
-            }
-          }
-        }
-      }
-      const els = Array.from(container.getElementsByTagName(options.tag))
-        .map(e => ({
-          element: e,
-          similarity: sim(e.textContent, searchText)
-        }))
-        .filter(c => c.similarity >= options.threshold)
+
+      if (!container) return null;
+      const els = Array.from(container.getElementsByTagName(options.tag)).map(e => ({
+        element: e,
+        similarity: sim(e.textContent, searchText)
+      }));
+      const filtered = els.filter(c => c.similarity >= options.threshold)
         .sort((a, b) => b.similarity - a.similarity);
-      return els[0]?.element || null;
+      return filtered[0]?.element || null;
     }
 
+    function validateAndFormatUrl(url) {
+      if (!url) return null;
+
+      const urlLower = url.toLowerCase();
+      if (CONFIG.NAVIGATION_KEYWORDS.BACK.some(keyword => urlLower.includes(keyword))) {
+        if (currentHistoryIndex > 0) return history[currentHistoryIndex - 1];
+        return null;
+      }
+      if (CONFIG.NAVIGATION_KEYWORDS.FORWARD.some(keyword => urlLower.includes(keyword))) {
+        if (currentHistoryIndex < history.length - 1) return history[currentHistoryIndex + 1];
+        return null;
+      }
+      if (CONFIG.NAVIGATION_KEYWORDS.HOME.some(keyword => urlLower.includes(keyword))) {
+        try {
+          const cur = new URL(agentState.currentUrl);
+          return cur.origin;
+        } catch {
+          return null;
+        }
+      }
+
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
+      }
+      try {
+        new URL(url);
+        return url;
+      } catch {
+        return null;
+      }
+    }
+
+    function updateJsonView(links = {}) {
+      const linksPanel = document.getElementById('linksPanel');
+      if (!linksPanel) return;
+
+      if (!links || Object.keys(links).length === 0) {
+        linksPanel.innerHTML = '<div class="p-4 text-gray-500">No links available</div>';
+        return;
+      }
+
+      linksPanel.innerHTML = '';
+      Object.entries(links).forEach(([text, url]) => {
+        const linkItem = document.createElement('div');
+        linkItem.className = 'link-item';
+
+        const linkText = document.createElement('div');
+        linkText.className = 'link-text';
+        linkText.textContent = text;
+
+        const linkUrl = document.createElement('div');
+        linkUrl.className = 'link-url';
+        linkUrl.textContent = url;
+
+        linkItem.appendChild(linkText);
+        linkItem.appendChild(linkUrl);
+
+        linkItem.onclick = () => {
+          navigateTo(url);
+        };
+
+        linksPanel.appendChild(linkItem);
+      });
+    }
+
+    // -----------------------------------
+    // Navigation Buttons
+    // -----------------------------------
     backBtn.onclick = () => {
       if (currentHistoryIndex > 0) {
         currentHistoryIndex--;
@@ -1189,16 +1150,6 @@ or use the standard action format if more investigation is needed.`;
     };
     urlBar.onkeypress = (e) => {
       if (e.key === 'Enter') navigateTo(urlBar.value);
-    };
-    sendBtn.onclick = () => {
-      const txt = userInput.value;
-      if (txt) {
-        handleUserInput(txt);
-        userInput.value = '';
-      }
-    };
-    userInput.onkeypress = (e) => {
-      if (e.key === 'Enter') sendBtn.click();
     };
 
     updateStatus('Navigate to a website and/or give the agent a task.');
