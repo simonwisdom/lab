@@ -370,6 +370,7 @@
     const CONFIG = {
       MAX_RETRIES: 3,
       MAX_REPEAT_ACTIONS: 3,
+      PROXY_URL: 'https://lab-proxy.vercel.app/api/proxy',
       NAVIGATION_KEYWORDS: {
         BACK: ['previous page', 'go back', 'last page'],
         FORWARD: ['next page', 'forward'],
@@ -726,85 +727,122 @@ If you cannot address the task with the available content, explain why.`;
     // -----------------------------------
     // Fetch + Display Page
     // -----------------------------------
-    async function navigateTo(url) {
-      debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Attempting navigation', url });
-      const validUrl = validateAndFormatUrl(url);
-      if (!validUrl) throw new Error(`Invalid URL: ${url}`);
+    // Replace the navigateTo function with this updated version:
+async function navigateTo(url) {
+  debugLog(CONFIG.DEBUG.TYPES.INFO, { message: 'Attempting navigation', url });
+  const validUrl = validateAndFormatUrl(url);
+  if (!validUrl) throw new Error(`Invalid URL: ${url}`);
 
-      try {
-        urlBar.value = validUrl;
-        agentState.currentUrl = validUrl;
+  try {
+    urlBar.value = validUrl;
+    agentState.currentUrl = validUrl;
 
-        const response = await fetch(validUrl);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    // Use the CORS proxy
+    const proxyUrl = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(validUrl)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        const contentType = response.headers.get('content-type') || 'text/plain';
-        const content = await response.text();
+    const contentType = response.headers.get('content-type') || 'text/plain';
+    const content = await response.text();
 
-        const viewport = document.getElementById('browserViewport');
-        if (!viewport) throw new Error('Viewport not found');
-        const toolbar = viewport.querySelector('.browser-toolbar');
+    const viewport = document.getElementById('browserViewport');
+    if (!viewport) throw new Error('Viewport not found');
+    const toolbar = viewport.querySelector('.browser-toolbar');
 
-        viewport.innerHTML = '';
-        if (toolbar) viewport.appendChild(toolbar);
+    viewport.innerHTML = '';
+    if (toolbar) viewport.appendChild(toolbar);
 
-        if (!TaskState.jinaResponse) TaskState.jinaResponse = { data: {} };
-        if (!TaskState.jinaResponse.data) TaskState.jinaResponse.data = {};
+    if (!TaskState.jinaResponse) TaskState.jinaResponse = { data: {} };
+    if (!TaskState.jinaResponse.data) TaskState.jinaResponse.data = {};
 
-        if (contentType.includes('text/html')) {
-          // Parse the HTML
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(content, 'text/html');
-          doc.querySelectorAll('script').forEach(scr => scr.remove());
+    if (contentType.includes('text/html')) {
+      // Parse the HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, 'text/html');
+      doc.querySelectorAll('script').forEach(scr => scr.remove());
 
-          // Resolve links against the base URL
-          const baseUrl = new URL(validUrl);
-          const links = {};
-          doc.querySelectorAll('a').forEach(link => {
-            const text = link.textContent.trim();
-            const hrefAttr = link.getAttribute('href') || '';
-            if (text && hrefAttr) {
-              // Construct absolute URL
-              const absoluteUrl = new URL(hrefAttr, baseUrl).href;
-              links[text] = absoluteUrl;
-            }
-          });
-          TaskState.jinaResponse.data.links = links;
-          updateJsonView(links);
-
-          // Insert sanitized HTML
-          const container = document.createElement('div');
-          container.className = 'sandboxed-container';
-          container.innerHTML = doc.body.innerHTML;
-          viewport.appendChild(container);
-
-        } else {
-          // Non-HTML content
-          const pre = document.createElement('pre');
-          pre.textContent = content;
-          viewport.appendChild(pre);
-
-          TaskState.jinaResponse.data.links = {};
-          updateJsonView({});
+      // Resolve links against the base URL
+      const baseUrl = new URL(validUrl);  // Use original URL for resolving
+      const links = {};
+      doc.querySelectorAll('a').forEach(link => {
+        const text = link.textContent.trim();
+        const hrefAttr = link.getAttribute('href') || '';
+        if (text && hrefAttr) {
+          // Construct absolute URL
+          const absoluteUrl = new URL(hrefAttr, baseUrl).href;
+          links[text] = absoluteUrl;  // Store original URL, not proxied
         }
+      });
+      TaskState.jinaResponse.data.links = links;
+      updateJsonView(links);
 
-        if (currentHistoryIndex < history.length - 1) {
-          history = history.slice(0, currentHistoryIndex + 1);
+      // Insert sanitized HTML
+      const container = document.createElement('div');
+      container.className = 'sandboxed-container';
+      container.innerHTML = doc.body.innerHTML;
+
+      // Update all links to use proxy
+      container.querySelectorAll('a').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href) {
+          try {
+            const absoluteUrl = new URL(href, baseUrl).href;
+            link.href = absoluteUrl;  // Keep original URL in href
+            link.setAttribute('data-original-url', absoluteUrl);
+            
+            // Handle clicks to use proxy
+            link.onclick = (e) => {
+              e.preventDefault();
+              navigateTo(absoluteUrl);
+            };
+          } catch (e) {
+            console.warn('Invalid URL:', href);
+          }
         }
-        history.push(validUrl);
-        currentHistoryIndex++;
-        backBtn.disabled = (currentHistoryIndex === 0);
-        forwardBtn.disabled = (currentHistoryIndex === history.length - 1);
+      });
 
-        updateStatus(`Navigated to ${validUrl}`);
-        return true;
-      } catch (e) {
-        console.error(e);
-        updateStatus(`Failed to navigate: ${e.message}`);
-        debugLog(CONFIG.DEBUG.TYPES.ERROR, { message: e.message, stack: e.stack });
-        return false;
-      }
+      // Update image sources to use proxy
+      container.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src) {
+          try {
+            const absoluteUrl = new URL(src, baseUrl).href;
+            img.src = `${CONFIG.PROXY_URL}?url=${encodeURIComponent(absoluteUrl)}`;
+          } catch (e) {
+            console.warn('Invalid image URL:', src);
+          }
+        }
+      });
+
+      viewport.appendChild(container);
+
+    } else {
+      // Non-HTML content
+      const pre = document.createElement('pre');
+      pre.textContent = content;
+      viewport.appendChild(pre);
+
+      TaskState.jinaResponse.data.links = {};
+      updateJsonView({});
     }
+
+    if (currentHistoryIndex < history.length - 1) {
+      history = history.slice(0, currentHistoryIndex + 1);
+    }
+    history.push(validUrl);
+    currentHistoryIndex++;
+    backBtn.disabled = (currentHistoryIndex === 0);
+    forwardBtn.disabled = (currentHistoryIndex === history.length - 1);
+
+    updateStatus(`Navigated to ${validUrl}`);
+    return true;
+  } catch (e) {
+    console.error(e);
+    updateStatus(`Failed to navigate: ${e.message}`);
+    debugLog(CONFIG.DEBUG.TYPES.ERROR, { message: e.message, stack: e.stack });
+    return false;
+  }
+}
 
     async function extractPageContent() {
       debugLog(CONFIG.DEBUG.TYPES.INFO, {
