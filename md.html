@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD Downloader</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/common.js"></script>
+  <style>
+    .url-input-container {
+      position: relative;
+      margin-bottom: 2rem;
+    }
+
+    .url-input {
+      width: 100%;
+    }
+
+    .preview-container {
+      margin-top: 2rem;
+      padding: 2rem;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid rgba(22, 163, 74, 0.15);
+      display: none;
+    }
+
+    .preview-container.visible {
+      display: block;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .status {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .status.error {
+      display: block;
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status.success {
+      display: block;
+      background-color: #f0fff4;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MD Downloader</h1>
+    <p>Enter a URL to fetch markdown content and preview it. You can also download directly by prepending the URL with <code>lab.simonwisdom.com/md?u=&lt;URL&gt;</code></p>
+    
+    <form id="urlForm" class="card">
+      <div class="url-input-container">
+
+        <input type="text" 
+               class="form-control url-input" 
+               id="urlInput" 
+               placeholder="Enter URL to fetch markdown content"
+               autocomplete="off">
+      </div>
+      
+      <div class="button-group">
+        <button type="submit" class="btn btn-primary">Fetch & Preview</button>
+        <button type="button" class="btn btn-secondary" id="downloadBtn" disabled>Download MD</button>
+      </div>
+    </form>
+
+    <div id="status" class="status"></div>
+    
+    <div id="preview" class="preview-container">
+      <h2>Preview</h2>
+      <div id="content"></div>
+    </div>
+  </div>
+
+  <script>
+    // Config
+    const CONFIG = {
+      JINA_API: 'https://r.jina.ai',
+      BASE_URL: '/md'
+    }
+
+    // State
+    const state = {
+      currentUrl: null,
+      markdownContent: null,
+      ui: {
+        form: null,
+        urlInput: null,
+        preview: null,
+        content: null,
+        downloadBtn: null,
+        status: null
+      }
+    }
+
+    // Core Functions
+    async function fetchMarkdown(url) {
+      try {
+        const response = await fetch(`${CONFIG.JINA_API}/${url}`)
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch markdown content')
+        }
+        
+        return await response.text()
+      } catch (error) {
+        throw new Error(`Error fetching markdown: ${error.message}`)
+      }
+    }
+
+    function downloadMarkdown(content, filename) {
+      const blob = new Blob([content], { type: 'text/markdown' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || 'content.md'
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    }
+
+    function showStatus(message, type = 'success') {
+      state.ui.status.textContent = message
+      state.ui.status.className = `status ${type}`
+      setTimeout(() => {
+        state.ui.status.className = 'status'
+      }, 3000)
+    }
+
+    // UI Handlers
+    function handleSubmit(e) {
+      e.preventDefault()
+      const url = state.ui.urlInput.value.trim()
+      
+      if (!url) {
+        showStatus('Please enter a URL', 'error')
+        return
+      }
+
+      state.currentUrl = url
+      fetchAndPreview(url)
+    }
+
+    async function fetchAndPreview(url) {
+      try {
+        state.ui.downloadBtn.disabled = true
+        state.markdownContent = await fetchMarkdown(url)
+        
+        // Show preview
+        state.ui.content.textContent = state.markdownContent
+        state.ui.preview.classList.add('visible')
+        state.ui.downloadBtn.disabled = false
+        
+        showStatus('Content fetched successfully')
+      } catch (error) {
+        showStatus(error.message, 'error')
+        state.ui.preview.classList.remove('visible')
+      }
+    }
+
+    function handleDownload() {
+      if (!state.markdownContent) return
+      
+      const filename = state.currentUrl.split('/').pop() || 'content.md'
+      downloadMarkdown(state.markdownContent, filename)
+      showStatus('Downloaded successfully')
+    }
+
+    // Core Functions
+    function getTargetUrl() {
+      const urlParams = new URLSearchParams(window.location.search)
+      return urlParams.get('u')
+    }
+
+    async function autoDownload(url) {
+      try {
+        const content = await fetchMarkdown(url)
+        const filename = url.split('/').pop() || 'content.md'
+        downloadMarkdown(content, filename)
+        showStatus('Downloaded successfully')
+        
+        // Also update the UI to show the content
+        state.markdownContent = content
+        state.currentUrl = url
+        state.ui.urlInput.value = url
+        state.ui.content.textContent = content
+        state.ui.preview.classList.add('visible')
+        state.ui.downloadBtn.disabled = false
+      } catch (error) {
+        showStatus(error.message, 'error')
+      }
+    }
+
+    // Init
+    function init() {
+      // Cache DOM elements
+      state.ui.form = document.getElementById('urlForm')
+      state.ui.urlInput = document.getElementById('urlInput')
+      state.ui.preview = document.getElementById('preview')
+      state.ui.content = document.getElementById('content')
+      state.ui.downloadBtn = document.getElementById('downloadBtn')
+      state.ui.status = document.getElementById('status')
+
+      // Add event listeners
+      state.ui.form.addEventListener('submit', handleSubmit)
+      state.ui.downloadBtn.addEventListener('click', handleDownload)
+
+      // Check for URL in path and trigger download if present
+      const targetUrl = getTargetUrl()
+      if (targetUrl) {
+        autoDownload(targetUrl)
+      }
+    }
+
+    // Start the app
+    init()
+  </script>
+</body>
+</html>
