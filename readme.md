@@ -4,6 +4,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Tools
 
+[Markdown downloader](https://lab.simonwisdom.com/md) - Prepend _lab.simonwisdom.com/md?u=_ in front of a URL to auto-download the page as markdown
+
 [Download Github Repo](https://lab.simonwisdom.com/github-repo-to-text) - Download an entire repo as a text file
 
 [Bulk Add Members to Github Org](https://lab.simonwisdom.com/github-org-invites) - Add a list of email addresses to a Github org
@@ -12,7 +14,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 [Extract URLs](https://lab.simonwisdom.com/extract-urls) - Extract URLs from a website for analysis in the LLM Web Parser
 
-[Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Convert a MkDocs site to Markdown
+[Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Download an entire MkDocs site as Markdown
  
 [LLM Widget](https://lab.simonwisdom.com/llm-widget) - A static widget to message multiple LLM providers 
 
