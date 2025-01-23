@@ -14,7 +14,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 [Extract URLs](https://lab.simonwisdom.com/extract-urls) - Extract URLs from a website for analysis in the LLM Web Parser
 
-[Mkdocs to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Download an entire MkDocs site as Markdown
+[Sitemap to Markdown](https://lab.simonwisdom.com/mkdocs-to-markdown) - Download an entire website as Markdown
  
 [LLM Widget](https://lab.simonwisdom.com/llm-widget) - A static widget to message multiple LLM providers 
 
