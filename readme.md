@@ -30,7 +30,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 [Pixel Wave](https://lab.simonwisdom.com/pixel-wave) - A pixelated hypnotic animation
 
-[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory - a game inspired by [Universal Paperclips](https://www.decisionproblem.com/paperclips/index2.html) [WIP]
+[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory [Work in progress] - a game inspired by [Universal Paperclips](https://www.decisionproblem.com/paperclips/index2.html)
 
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
 

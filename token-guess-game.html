@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Prediction Game</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+  .game-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+  }
+
+  .setup {
+    margin-bottom: 2rem;
+  }
+
+  .game-content {
+    display: none;
+  }
+
+  .prompt {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--color-primary-light);
+    border-radius: 8px;
+    border: var(--border-organic);
+  }
+
+  .input-group {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .input-group input {
+    flex: 1;
+  }
+
+  .score {
+    font-size: 1.25rem;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+  }
+
+  .result {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    display: none;
+  }
+
+  .result.correct {
+    background: #f0fff4;
+    border: 1px solid #31c48d;
+    color: #057a55;
+  }
+
+  .result.incorrect {
+    background: #fff5f5;
+    border: 1px solid #f98080;
+    color: #c81e1e;
+  }
+
+  .loading {
+    display: none;
+    color: #666;
+    margin: 1rem 0;
+  }
+
+  .top-predictions {
+    margin-top: 1.5rem;
+    display: none;
+  }
+
+  .prediction-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+  }
+
+  .prediction-item:last-child {
+    border-bottom: none;
+  }
+
+  .token {
+    font-weight: 500;
+  }
+
+  .probability {
+    color: #666;
+  }
+
+  .api-key-help {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: #666;
+  }
+
+  .progress-bar {
+    margin: 1rem 0;
+    padding: 0.5rem;
+    background: var(--color-primary-light);
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .game-summary {
+    display: none;
+    margin-top: 2rem;
+  }
+
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+
+  .summary-table th,
+  .summary-table td {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+
+  .summary-table th {
+    background: var(--color-primary-light);
+  }
+
+  .summary-table tr:nth-child(even) {
+    background: #f8f8f8;
+  }
+
+  .final-score {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--color-primary);
+    margin: 1rem 0;
+  }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>Word Prediction Game</h1>
+    
+    <!-- Setup -->
+    <div id="setup" class="setup">
+      <p class="help-text">Click to start playing!</p>
+      <div class="input-group">
+        <button id="startGame" class="btn btn-primary">Start Game</button>
+      </div>
+    </div>
+
+    <!-- Game Interface -->
+    <div id="gameContent" class="game-content">
+      <p class="help-text">Try to guess the next word that the AI model predicts will come next in the sentence!</p>
+      
+      <div class="score">Score: <span id="scoreValue">0</span></div>
+      <div class="progress-bar">Question <span id="questionNumber">1</span>/10</div>
+      
+      <div class="prompt" id="prompt">Loading...</div>
+      
+      <div class="input-group">
+        <input type="text" id="userGuess" placeholder="Type your guess..." class="form-control">
+        <button id="submitGuess" class="btn btn-primary">Guess</button>
+        <button id="nextPrompt" class="btn btn-secondary" style="display: none;">Next</button>
+      </div>
+
+      <div id="loading" class="loading">Getting predictions...</div>
+      <div id="result" class="result"></div>
+      
+      <div id="topPredictions" class="top-predictions">
+        <h2>Top Predictions</h2>
+        <div id="predictionsList"></div>
+      </div>
+
+      <!-- Game Summary -->
+      <div id="gameSummary" class="game-summary">
+        <h2>Game Complete!</h2>
+        <div class="final-score">Final Score: <span id="finalScore">0</span></div>
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Prompt</th>
+              <th>Your Guess</th>
+              <th>Top Prediction</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody id="summaryTableBody"></tbody>
+        </table>
+        <button id="playAgain" class="btn btn-primary">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+  // Config
+  const CONFIG = {
+    GEMINI_API_URL: 'https://lab-proxy.vercel.app/api/gemini-proxy',
+  };
+
+  // State
+  const state = {
+    apiKey: '',
+    score: 0,
+    currentPrompt: '',
+    predictions: [],
+    prompts: [],
+    promptsCompleted: 0,
+    loading: false,
+    allPrompts: [], // Will store all loaded prompts
+    roundSummary: [], // Will store details of each round
+  };
+
+  async function loadPrompts() {
+    try {
+      const response = await fetch('assets/incomplete_sentences.txt');
+      const text = await response.text();
+      
+      // Parse the sentences, removing the numbers and cleaning
+      state.allPrompts = text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => line.replace(/^\d+\.\s*/, '')) // Remove numbering
+        .map(line => line.trim());
+        
+    } catch (error) {
+      console.error('Error loading prompts:', error);
+      throw new Error('Failed to load prompts');
+    }
+  }
+
+  function selectGamePrompts() {
+    // Randomly select 10 prompts from the full list
+    const shuffled = [...state.allPrompts].sort(() => Math.random() - 0.5);
+    state.prompts = shuffled.slice(0, 10);
+  }
+
+  async function startGame() {
+    // Remove API key related code since we're using the proxy
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+  
+    try {
+      // Load all prompts if not already loaded
+      if (state.allPrompts.length === 0) {
+        await loadPrompts();
+      }
+    
+      // Select 10 random prompts for this game
+      selectGamePrompts();
+    
+      // Reset game state
+      state.score = 0;
+      state.promptsCompleted = 0;
+    
+      // Hide loading, show game
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('gameContent').style.display = 'block';
+    
+      setNewPrompt();
+    } catch (error) {
+      console.error('Error starting game:', error);
+      showResult(false, 'Failed to start game. Please try again.');
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('setup').style.display = 'block';
+    }
+  }
+
+  function getRandomPrompt() {
+    if (state.prompts.length === 0) {
+      // This shouldn't happen, but just in case
+      selectGamePrompts();
+    }
+    const index = Math.floor(Math.random() * state.prompts.length);
+    const prompt = state.prompts[index];
+    // Remove used prompt
+    state.prompts.splice(index, 1);
+    return prompt;
+  }
+
+  // Core Functions
+  async function getPredictions(text) {
+    try {
+      // Make multiple separate requests with different temperatures
+      const requests = [0.7, 0.8, 0.9, 1.0, 1.1].map(temp => 
+        fetch(CONFIG.GEMINI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Complete this sentence with a single word. Only return the single word, nothing else: "${text}"`
+              }]
+            }],
+            generationConfig: {
+              temperature: temp,
+              maxOutputTokens: 1,
+              topK: 10,
+              topP: 0.9
+            }
+          })
+        })
+      );
+
+      const responses = await Promise.all(requests);
+      
+      // Process all successful responses
+      const results = await Promise.all(responses.map(async r => {
+        if (!r.ok) {
+          throw new Error(`API error: ${r.status}`);
+        }
+        return r.json();
+      }));
+      
+      // Combine and deduplicate predictions
+      const seenTokens = new Set();
+      const predictions = [];
+      
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+          const token = result.candidates[0].content.parts[0].text.trim();
+          
+          if (!seenTokens.has(token)) {
+            seenTokens.add(token);
+            predictions.push({
+              token: token,
+              probability: Math.max(40 - (predictions.length * 10), 10) // 40%, 30%, 20%, 10%
+            });
+          }
+        }
+      }
+
+      return predictions.slice(0, 5);
+    } catch (error) {
+      console.error('Error getting predictions:', error);
+      throw error;
+    }
+  }
+
+  // Helper function to get contextual alternatives
+  function getContextualAlternatives(firstWord, prompt, contextWords) {
+    // Get the last word of the prompt
+    const lastWord = prompt.split(' ').pop().toLowerCase();
+    
+    // Get alternatives based on the last word or use generic alternatives
+    const alternatives = contextWords[lastWord] || ['mat', 'floor', 'chair', 'table'];
+    
+    return alternatives
+      .filter(word => word !== firstWord)
+      .map((word, index) => ({
+        token: word,
+        probability: 0.8 - (index * 0.15)
+      }))
+      .slice(0, 4); // Get up to 4 alternatives
+  }
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  function updateScore(points) {
+    state.score += points;
+    document.getElementById('scoreValue').textContent = state.score;
+  }
+
+  // UI Handlers
+  function showLoading(show) {
+    const loading = document.getElementById('loading');
+    loading.style.display = show ? 'block' : 'none';
+    
+    // Disable/enable input while loading
+    document.getElementById('userGuess').disabled = show;
+    document.getElementById('submitGuess').disabled = show;
+  }
+
+  function showResult(correct, message) {
+    const result = document.getElementById('result');
+    result.textContent = message;
+    result.className = 'result ' + (correct ? 'correct' : 'incorrect');
+    result.style.display = 'block';
+  }
+
+  function showPredictions(predictions) {
+    const container = document.getElementById('topPredictions');
+    const list = document.getElementById('predictionsList');
+    
+    list.innerHTML = predictions
+      .map(p => `
+        <div class="prediction-item">
+          <span class="token">"${p.token}"</span>
+          <span class="probability">${p.probability}%</span>
+        </div>
+      `)
+      .join('');
+    
+    container.style.display = 'block';
+  }
+
+  function setNewPrompt() {
+    if (state.promptsCompleted < 10) {
+      state.currentPrompt = getRandomPrompt();
+      document.getElementById('prompt').textContent = state.currentPrompt;
+      
+      // Reset UI
+      document.getElementById('userGuess').value = '';
+      document.getElementById('userGuess').disabled = false;
+      document.getElementById('submitGuess').style.display = 'block';
+      document.getElementById('nextPrompt').style.display = 'none';
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('topPredictions').style.display = 'none';
+    }
+  }
+
+  async function handleGuess(event) {
+    event.preventDefault();
+    
+    const userGuess = document.getElementById('userGuess').value.trim().toLowerCase();
+    if (!userGuess) return;
+
+    document.getElementById('userGuess').disabled = true;
+    document.getElementById('submitGuess').style.display = 'none';
+
+    try {
+      showLoading(true);
+      state.predictions = await getPredictions(state.currentPrompt);
+      
+      const matchingPrediction = state.predictions.find(p => 
+        p.token.toLowerCase() === userGuess
+      );
+      
+      const points = matchingPrediction ? matchingPrediction.probability : 0;
+      state.score += points;
+      
+      const topPrediction = state.predictions[0].token;
+      const correct = userGuess === topPrediction.toLowerCase();
+      
+      // Store round summary
+      state.roundSummary.push({
+        questionNumber: state.promptsCompleted + 1,
+        prompt: state.currentPrompt,
+        userGuess: userGuess,
+        topPrediction: topPrediction,
+        points: points
+      });
+
+      document.getElementById('scoreValue').textContent = state.score;
+      document.getElementById('questionNumber').textContent = state.promptsCompleted + 1;
+      
+      showResult(correct, `${correct ? 'Perfect!' : 'Not quite!'} "${topPrediction}" was the most likely next word. ${
+        points > 0 ? `You got ${points} points!` : 'No points awarded.'
+      }`);
+      
+      showPredictions(state.predictions);
+      document.getElementById('nextPrompt').style.display = 'block';
+      
+      updateGameStatus();
+      
+    } catch (error) {
+      if (error.message === 'COLD_START') {
+        // Re-enable input and show guess button if it's just a cold start
+        document.getElementById('userGuess').disabled = false;
+        document.getElementById('submitGuess').style.display = 'block';
+        return;
+      }
+      showResult(false, 'Sorry, there was an error checking your guess. Please try again.');
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  function updateGameStatus() {
+    state.promptsCompleted++;
+    
+    if (state.promptsCompleted === 10) {
+      showGameSummary();
+    }
+  }
+
+  function showGameSummary() {
+    // Hide game elements
+    document.getElementById('prompt').style.display = 'none';
+    document.getElementById('userGuess').style.display = 'none';
+    document.getElementById('submitGuess').style.display = 'none';
+    document.getElementById('nextPrompt').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('topPredictions').style.display = 'none';
+    
+    // Show summary
+    const summary = document.getElementById('gameSummary');
+    const tableBody = document.getElementById('summaryTableBody');
+    document.getElementById('finalScore').textContent = state.score;
+    
+    // Generate summary table
+    tableBody.innerHTML = state.roundSummary
+      .map(round => `
+        <tr>
+          <td>${round.questionNumber}</td>
+          <td>${round.prompt}</td>
+          <td>${round.userGuess}</td>
+          <td>${round.topPrediction}</td>
+          <td>${round.points}</td>
+        </tr>
+      `)
+      .join('');
+    
+    summary.style.display = 'block';
+  }
+
+  // Init
+  function init() {
+    // Start game button handler - no API key needed
+    document.getElementById('startGame').addEventListener('click', () => {
+      startGame();
+    });
+    
+    // Game input handlers
+    document.getElementById('submitGuess').addEventListener('click', handleGuess);
+    document.getElementById('userGuess').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        handleGuess(e);
+      }
+    });
+    
+    document.getElementById('nextPrompt').addEventListener('click', setNewPrompt);
+
+    // Add play again handler
+    document.getElementById('playAgain').addEventListener('click', () => {
+      document.getElementById('gameSummary').style.display = 'none';
+      document.getElementById('prompt').style.display = 'block';
+      document.getElementById('userGuess').style.display = 'block';
+      state.roundSummary = [];
+      startGame();
+    });
+  }
+
+  init();
+  </script>
+</body>
+</html>
