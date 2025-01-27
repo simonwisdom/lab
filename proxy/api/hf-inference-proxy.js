@@ -37,15 +37,19 @@ export default async function handler(req, res) {
     console.log('API Key present:', !!apiKey);
     console.log('API Key length:', apiKey?.length);
     
-    console.log('Request body:', JSON.stringify(req.body));
+    const { model, ...requestBody } = req.body;
+    const modelId = model || 'google/gemma-2-2b-it'; // Default model if none specified
+    
+    console.log('Using model:', modelId);
+    console.log('Request body:', JSON.stringify(requestBody));
 
-    const response = await fetch('https://api-inference.huggingface.co/models/google/gemma-2-2b-it', {
+    const response = await fetch(`https://api-inference.huggingface.co/models/${modelId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(requestBody)
     });
     
     console.log('Hugging Face API Response Status:', response.status);
