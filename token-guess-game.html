@@ -52,6 +52,11 @@
     display: none;
   }
 
+  .result button {
+    display: block;
+    margin: 0.5rem auto 0;
+  }
+
   .result.correct {
     background: #f0fff4;
     border: 1px solid #31c48d;
@@ -179,7 +184,12 @@
       </div>
 
       <div id="loading" class="loading">Getting predictions...</div>
-      <div id="result" class="result"></div>
+      <div id="result" class="result">
+        <span id="resultMessage"></span>
+        <button id="retryButton" class="btn btn-secondary" style="display: none; margin-top: 0.5rem;">
+          Retry
+        </button>
+      </div>
       
       <div id="topPredictions" class="top-predictions">
         <h2>Top Predictions</h2>
@@ -211,7 +221,7 @@
   // Config
   const CONFIG = {
     HF_API_URL: 'https://lab-proxy.vercel.app/api/huggingface-proxy',
-    MODEL: 'google/gemma-2b-it'
+    MODEL: 'meta-llama/Llama-3.2-3B-Instruct'
   };
 
   // State
@@ -400,11 +410,25 @@
     document.getElementById('submitGuess').disabled = show;
   }
 
-  function showResult(correct, message) {
+  function showResult(correct, message, showRetry = false) {
     const result = document.getElementById('result');
-    result.textContent = message;
+    const resultMessage = document.getElementById('resultMessage');
+    const retryButton = document.getElementById('retryButton');
+    
+    resultMessage.textContent = message;
     result.className = 'result ' + (correct ? 'correct' : 'incorrect');
     result.style.display = 'block';
+    
+    if (showRetry) {
+      retryButton.style.display = 'none';
+      retryButton.disabled = true;
+      setTimeout(() => {
+        retryButton.style.display = 'block';
+        retryButton.disabled = false;
+      }, 3000);
+    } else {
+      retryButton.style.display = 'none';
+    }
   }
 
   function showPredictions(predictions) {
@@ -489,7 +513,7 @@
         document.getElementById('submitGuess').style.display = 'block';
         return;
       }
-      showResult(false, 'Sorry, there was an error checking your guess. Please try again.');
+      showResult(false, 'Sorry, there was an error checking your guess. Please try again.', true);
     } finally {
       showLoading(false);
     }
@@ -558,6 +582,9 @@
       state.roundSummary = [];
       startGame();
     });
+
+    // Add retry button handler
+    document.getElementById('retryButton').addEventListener('click', handleGuess);
   }
 
   init();
