@@ -19,12 +19,16 @@ export default async function handler(req, res) {
     });
   }
 
+  // Set CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
 
+  // Handle preflight request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
   if (req.method !== 'POST') {
@@ -38,7 +42,7 @@ export default async function handler(req, res) {
     console.log('API Key length:', apiKey?.length);
     
     const { model, ...requestBody } = req.body;
-    const modelId = model || 'google/gemma-2-2b-it'; // Default model if none specified
+    const modelId = model || 'google/gemma-2-2b-it';
     
     console.log('Using model:', modelId);
     console.log('Request body:', JSON.stringify(requestBody));
