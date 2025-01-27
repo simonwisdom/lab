@@ -154,6 +154,21 @@
     font-size: 1.1rem;
     color: #666;
   }
+
+  .setup select {
+    width: 100%;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    border: var(--border-organic);
+    border-radius: 8px;
+    background: white;
+  }
+
+  .model-info {
+    font-size: 0.875rem;
+    color: #666;
+    margin-top: 0.5rem;
+  }
   </style>
 </head>
 <body>
@@ -162,7 +177,16 @@
     
     <!-- Setup -->
     <div id="setup" class="setup">
-      <p class="help-text">Click to start playing!</p>
+      <p class="help-text">Select a model and click to start playing!</p>
+      <div class="input-group">
+        <select id="modelSelect" class="form-control">
+          <option value="meta-llama/Llama-3.2-3B-Instruct">Llama 3.2 3B Instruct</option>
+          <option value="google/gemma-2-2b-it">Gemma 2.2B Instruct</option>
+          <option value="meta-llama/Llama-3.1-8B-Instruct">Llama 3.1 8B Instruct</option>
+          <option value="mistralai/Mistral-7B-Instruct-v0.3">Mistral 7B Instruct v0.3</option>
+          <option value="microsoft/Phi-3.5-mini-instruct">Phi 3.5 Mini Instruct</option>
+        </select>
+      </div>
       <div class="input-group">
         <button id="startGame" class="btn btn-primary">Start Game</button>
       </div>
@@ -220,8 +244,7 @@
   <script type="module">
   // Config
   const CONFIG = {
-    HF_API_URL: 'https://lab-proxy.vercel.app/api/huggingface-proxy',
-    MODEL: 'meta-llama/Llama-3.2-3B-Instruct'
+    HF_API_URL: 'https://lab-proxy.vercel.app/api/huggingface-proxy'
   };
 
   // State
@@ -235,6 +258,7 @@
     loading: false,
     allPrompts: [], // Will store all loaded prompts
     roundSummary: [], // Will store details of each round
+    selectedModel: '' // Add selected model to state
   };
 
   async function loadPrompts() {
@@ -263,7 +287,9 @@
   }
 
   async function startGame() {
-    // Remove API key related code since we're using the proxy
+    const modelSelect = document.getElementById('modelSelect');
+    state.selectedModel = modelSelect.value;
+    
     document.getElementById('setup').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
   
@@ -279,6 +305,7 @@
       // Reset game state
       state.score = 0;
       state.promptsCompleted = 0;
+      state.roundSummary = [];
     
       // Hide loading, show game
       document.getElementById('loading').style.display = 'none';
@@ -316,11 +343,11 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: CONFIG.MODEL,
+            model: state.selectedModel,
             inputs: `Complete this sentence with a single word. Only return the single word, nothing else: "${text}"`,
             parameters: {
               temperature: temp,
-              max_new_tokens: 3,
+              max_new_tokens: 2,
               top_k: 40,
               top_p: 0.9,
               return_full_text: false

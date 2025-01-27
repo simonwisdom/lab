@@ -22,6 +22,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+[Next Token Predictor](https://lab.simonwisdom.com/token-guess-game) - Guess the name token in a sentence
+
 [Web Browser Agent](https://lab.simonwisdom.com/agent-web-browsing) - A hobbled web browsing agent demo
 
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
