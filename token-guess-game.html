@@ -141,11 +141,19 @@
     color: var(--color-primary);
     margin: 1rem 0;
   }
+
+  .question-number {
+    margin: 1rem 0;
+    text-align: center;
+    font-weight: 500;
+    font-size: 1.1rem;
+    color: #666;
+  }
   </style>
 </head>
 <body>
   <div class="game-container">
-    <h1>Word Prediction Game</h1>
+    <h1>Next Token Prediction Game</h1>
     
     <!-- Setup -->
     <div id="setup" class="setup">
@@ -157,10 +165,10 @@
 
     <!-- Game Interface -->
     <div id="gameContent" class="game-content">
-      <p class="help-text">Try to guess the next word that the AI model predicts will come next in the sentence!</p>
+      <p class="help-text">Try to guess the next token that the AI model predicts will come next in the sentence!</p>
       
       <div class="score">Score: <span id="scoreValue">0</span></div>
-      <div class="progress-bar">Question <span id="questionNumber">1</span>/10</div>
+      <div class="question-number">Question <span id="questionNumber">1</span>/10</div>
       
       <div class="prompt" id="prompt">Loading...</div>
       
@@ -289,8 +297,8 @@
   // Core Functions
   async function getPredictions(text) {
     try {
-      // Make multiple separate requests with different temperatures
-      const requests = [0.7, 0.8, 0.9, 1.0, 1.1].map(temp => 
+      // Use more varied temperatures
+      const requests = [0.1, 0.5, 0.9, 1.3, 1.7].map(temp => 
         fetch(CONFIG.GEMINI_API_URL, {
           method: 'POST',
           headers: {
@@ -305,7 +313,7 @@
             generationConfig: {
               temperature: temp,
               maxOutputTokens: 1,
-              topK: 10,
+              topK: 40, // Increased from 10
               topP: 0.9
             }
           })
@@ -317,6 +325,8 @@
       // Process all successful responses
       const results = await Promise.all(responses.map(async r => {
         if (!r.ok) {
+          const errorData = await r.json();
+          console.error('API Error:', errorData);
           throw new Error(`API error: ${r.status}`);
         }
         return r.json();
@@ -331,14 +341,18 @@
         if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
           const token = result.candidates[0].content.parts[0].text.trim();
           
-          if (!seenTokens.has(token)) {
-            seenTokens.add(token);
+          if (!seenTokens.has(token.toLowerCase())) { // Case-insensitive deduplication
+            seenTokens.add(token.toLowerCase());
             predictions.push({
               token: token,
               probability: Math.max(40 - (predictions.length * 10), 10) // 40%, 30%, 20%, 10%
             });
           }
         }
+      }
+
+      if (predictions.length === 0) {
+        throw new Error('No valid predictions received');
       }
 
       return predictions.slice(0, 5);
