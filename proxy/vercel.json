@@ -12,6 +12,10 @@
     "api/feedback.js": {
       "memory": 1024,
       "maxDuration": 10
+    },
+    "api/huggingface-proxy.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
   },
   "routes": [
@@ -28,6 +32,11 @@
     {
       "src": "api/feedback",
       "dest": "/api/feedback.js",
+      "methods": ["POST", "OPTIONS"]
+    },
+    {
+      "src": "api/huggingface-proxy",
+      "dest": "/api/huggingface-proxy.js",
       "methods": ["POST", "OPTIONS"]
     }
   ]
