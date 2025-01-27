@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Prediction Game</title>
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/common.js"></script>
     <style>
         .game-container {
             max-width: 600px;
@@ -355,7 +356,7 @@
                             parameters: {
                                 temperature: temp,
                                 max_new_tokens: 5,     // Generate 5 tokens per completion
-                                top_k: 40,
+                                top_k: 10,
                                 top_p: 0.95,
                                 do_sample: true,
                                 return_full_text: false
