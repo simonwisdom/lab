@@ -306,14 +306,15 @@
           },
           body: JSON.stringify({
             contents: [{
+            role: 'user',
               parts: [{
-                text: `Complete this sentence with a single word. Only return the single word, nothing else: "${text}"`
+                text: `Complete this sentence with a single word. Don't always give the most obvious answer, sometimes give your 2nd or 3rd choice. Only return the single word, nothing else: "${text}"`
               }]
             }],
             generationConfig: {
               temperature: temp,
               maxOutputTokens: 1,
-              topK: 40, // Increased from 10
+              topK: 40,
               topP: 0.9
             }
           })
