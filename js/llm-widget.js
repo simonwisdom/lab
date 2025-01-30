@@ -9,7 +9,7 @@ export class LLMWidget extends HTMLElement {
             { id: 'free', name: 'Free (Gemini Flash 1.5)' },
             { id: 'anthropic', name: 'Anthropic (BYO API Key)' },
             { id: 'openai', name: 'OpenAI (BYO API Key)' },
-            { id: 'gemini', name: 'Gemini (BYO API Key)' },
+            { id: 'google', name: 'Google (BYO API Key)' },
             { id: 'togetherai', name: 'Together AI (BYO API Key)' }
         ];
 
@@ -18,7 +18,9 @@ export class LLMWidget extends HTMLElement {
     }
 
     formatTokenPrice(price) {
-        const pricePerMillion = price * 1000000;
+        // Convert from per-1000 tokens to per-million tokens
+        const pricePerMillion = price * 1000;
+        // Round to 2 decimal places
         return `$${pricePerMillion.toFixed(2)}/M tokens`;
     }
 
@@ -43,12 +45,20 @@ export class LLMWidget extends HTMLElement {
             const pricingData = await this.client.loadPricingData();
             this.currentPricingData = pricingData;
 
-            modelSelect.innerHTML = pricingData.map(model => `
-                <option value="${model.name}">
-                    ${model.name} (${this.formatTokenPrice(model.promptCost)} in, 
-                    ${this.formatTokenPrice(model.completionCost)} out)
-                </option>
-            `).join('');
+            // Normalize the selected provider value
+            const normalizedSelectedProvider = providerSelect.value
+                .toLowerCase()
+                .replace(/\s*\([^)]*\)\s*/g, '')
+                .trim();
+
+            modelSelect.innerHTML = pricingData
+                .filter(model => model.provider === normalizedSelectedProvider)
+                .map(model => `
+                    <option value="${model.model}">
+                        ${model.model} (${this.formatTokenPrice(model.inputCost)} in, 
+                        ${this.formatTokenPrice(model.outputCost)} out)
+                    </option>
+                `).join('');
 
             this.updatePricingInfo();
         } catch (error) {
@@ -63,14 +73,14 @@ export class LLMWidget extends HTMLElement {
         if (!modelSelect || !pricingInfo) return;
 
         const selectedModel = this.currentPricingData.find(
-            m => m.name === modelSelect.value
+            m => m.model === modelSelect.value
         );
 
         if (selectedModel) {
             pricingInfo.innerHTML = `
                 <div class="pricing-details">
-                    <p>Input: ${this.formatTokenPrice(selectedModel.promptCost)}</p>
-                    <p>Output: ${this.formatTokenPrice(selectedModel.completionCost)}</p>
+                    <p>Input: ${this.formatTokenPrice(selectedModel.inputCost)}</p>
+                    <p>Output: ${this.formatTokenPrice(selectedModel.outputCost)}</p>
                 </div>
             `;
         }

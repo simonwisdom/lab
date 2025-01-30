@@ -6,31 +6,31 @@
  * @typedef {Object} ProviderConfig
  * @property {boolean} [useOwnKey=false] - Whether to use the user's API key or proxy
  * @property {string} [apiKey=''] - API key for the selected provider
- * @property {('openai'|'anthropic'|'gemini'|'togetherai')} [provider='gemini'] - LLM provider
+ * @property {('openai'|'anthropic'|'google'|'togetherai')} [provider='google'] - LLM provider
  * @property {string} [model] - Model name for the selected provider
  * @property {number} [temperature=0.7] - Temperature for response generation
  * @property {number} [maxTokens=1000] - Maximum tokens for response
  * @property {string} [proxyUrl] - URL for proxy server when not using own key
  */
 
+const SUPPORTED_PROVIDERS = {
+    OPENAI: 'openai',
+    ANTHROPIC: 'anthropic',
+    GOOGLE: 'google',
+    TOGETHER: 'togetherai'
+};
+
 const CACHE_DURATION = 24 * 60 * 60 * 1000;
 
 // External script URL for BYO API key integration
 const UNIFIED_LLM_API_URL = 'https://amanpriyanshu.github.io/API-LLM-Hub/unified-llm-api.js';
-
-const PRICING_URLS = {
-    anthropic: 'https://raw.githubusercontent.com/Helicone/helicone/main/costs/src/providers/anthropic/index.ts',
-    openai: 'https://raw.githubusercontent.com/Helicone/helicone/main/costs/src/providers/openai/index.ts',
-    gemini: 'https://raw.githubusercontent.com/Helicone/helicone/main/costs/src/providers/google/index.ts',
-    togetherai: 'https://raw.githubusercontent.com/Helicone/helicone/main/costs/src/providers/togetherai/completion/index.ts'
-};
 
 export class LLMClient {
     constructor(config = {}) {
         this.config = {
             useOwnKey: false,
             apiKey: '',
-            provider: 'gemini',
+            provider: SUPPORTED_PROVIDERS.GOOGLE,
             model: 'gemini-1.5-flash-latest',
             temperature: 0.7,
             maxTokens: 1000,
@@ -40,38 +40,30 @@ export class LLMClient {
 
         this.initialized = false;
         this.apiHub = null;
-        this.pricingData = {};
+        this.pricingData = null;
     }
 
     async loadPricingData() {
         try {
-            const response = await fetch(PRICING_URLS[this.config.provider]);
-            const data = await response.text();
-
-            // Parse the TypeScript-like content
-            // Note: This is a simplified parser for the provided format
-            const modelData = [];
-            const lines = data.split('\n');
-            let currentModel = null;
-
-            for (const line of lines) {
-                if (line.includes('model: {')) {
-                    currentModel = {};
-                } else if (currentModel && line.includes('value:')) {
-                    currentModel.name = line.match(/["'](.*?)["']/)[1];
-                } else if (currentModel && line.includes('prompt_token:')) {
-                    currentModel.promptCost = parseFloat(line.match(/[\d.]+/)[0]);
-                } else if (currentModel && line.includes('completion_token:')) {
-                    currentModel.completionCost = parseFloat(line.match(/[\d.]+/)[0]);
-                    if (currentModel.name) {
-                        modelData.push({ ...currentModel });
-                    }
-                    currentModel = null;
-                }
-            }
-
-            this.pricingData = modelData;
-            return modelData;
+            const response = await fetch('/assets/llm-costs-2025-01-30.csv');
+            const csvText = await response.text();
+            const lines = csvText.split('\n').filter(line => line.trim());
+            
+            return lines.slice(1).map(line => {
+                const [provider, model, _, __, inputCost, outputCost] = line
+                    .split(',')
+                    .map(v => v.trim().replace(/^"|"$/g, ''));
+                
+                return {
+                    provider: provider.toLowerCase(),
+                    model: model,
+                    inputCost: parseFloat(inputCost.replace(/[^0-9.]/g, '')),
+                    outputCost: parseFloat(outputCost.replace(/[^0-9.]/g, ''))
+                };
+            }).filter(({ provider }) => 
+                Object.values(SUPPORTED_PROVIDERS).includes(provider)
+            );
+            
         } catch (error) {
             console.error('Error loading pricing data:', error);
             return [];
@@ -104,17 +96,56 @@ export class LLMClient {
         this.initialized = true;
     }
 
+    async calculateMessageCost(prompt, response = '') {
+        if (!this.pricingData) {
+            await this.loadPricingData();
+        }
+
+        // Find pricing for current model
+        const modelPricing = this.pricingData.find(m => m.name === this.config.model);
+        if (!modelPricing) {
+            console.warn(`No pricing data found for model: ${this.config.model}`);
+            return null;
+        }
+
+        // Estimate token counts (rough approximation)
+        const promptTokens = Math.ceil(prompt.length / 4);
+        const responseTokens = Math.ceil(response.length / 4);
+
+        // Calculate costs
+        const promptCost = (promptTokens / 1000) * modelPricing.inputCost;
+        const responseCost = (responseTokens / 1000) * modelPricing.outputCost;
+        const totalCost = promptCost + responseCost;
+
+        return {
+            promptTokens,
+            responseTokens,
+            promptCost,
+            responseCost,
+            totalCost
+        };
+    }
+
     async sendMessage(prompt) {
         if (!this.initialized) {
             await this.initialize();
         }
 
         try {
+            let response;
             if (this.config.useOwnKey) {
-                return await this.sendBYOKeyMessage(prompt);
+                response = await this.sendBYOKeyMessage(prompt);
             } else {
-                return await this.sendProxiedMessage(prompt);
+                response = await this.sendProxiedMessage(prompt);
             }
+
+            // Calculate cost after successful response
+            const cost = await this.calculateMessageCost(prompt, response);
+            
+            return {
+                text: response,
+                cost: cost
+            };
         } catch (error) {
             console.error('Error sending message:', error);
             throw new Error(`Failed to send message: ${error.message}`);
