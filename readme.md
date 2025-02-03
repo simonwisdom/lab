@@ -30,8 +30,9 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
 
-## Not quite working
+## Work in Progress
 
+[Semantic Relationship Mapping](https://lab.simonwisdom.com/token-guess-game) - Explore how concepts are connected in natural language
 
 [Next Token Predictor](https://lab.simonwisdom.com/token-guess-game) - Guess the name token in a sentence
 

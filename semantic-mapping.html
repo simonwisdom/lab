@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Semantic Concept Visualizer</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .visualization-container {
+      width: 100%;
+      height: 600px;
+      margin-top: 2rem;
+      position: relative;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      border: var(--border-organic);
+    }
+    .node { fill: white; stroke: #333; stroke-width: 2px; }
+    .node-core { fill: var(--color-primary-light); stroke: var(--color-primary); }
+    .node-text { font-family: Helvetica, Arial, sans-serif; font-size: 14px; text-anchor: middle; pointer-events: none; }
+    .link { stroke: #999; stroke-opacity: 0.6; stroke-width: 1px; }
+    .link-support { stroke: #15803D; }
+    .link-neutral { stroke: #2563EB; }
+    .link-conflict { stroke: #EA580C; }
+    .link-label { font-family: Helvetica, Arial, sans-serif; font-size: 12px; fill: #666; pointer-events: none; }
+    .loading-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255, 255, 255, 0.9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: #666; border-radius: 12px;
+    }
+    .description {
+      color: #666;
+      margin-bottom: 2rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Semantic Concept Visualizer</h1>
+    <p class="description">
+      Explore how concepts are connected in natural language using the ConceptNet knowledge graph. 
+      Enter a statement or opinion to visualize relationships between words and discover related concepts.
+    </p>
+    <div class="card">
+      <form id="conceptForm" class="mb-3">
+        <label for="statement" class="mb-2">Enter a statement or opinion:</label>
+        <input type="text" id="statement" class="form-control mb-2"
+               placeholder="e.g., Electric cars are better for cities" required>
+        <div class="button-container">
+          <button type="submit" class="btn btn-primary">Analyze</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="visualization-container">
+      <svg id="visualization" width="100%" height="100%">
+        <g id="links"></g>
+        <g id="link-labels"></g>
+        <g id="nodes"></g>
+      </svg>
+      <div id="loading" class="loading-overlay" style="display: none">
+        Analyzing concepts...
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Config
+    const CONFIG = {
+      API_BASE: 'https://api.conceptnet.io',
+      VISUALIZATION: {
+        NODE_SIZE: 50,
+        ANIMATION_DURATION: 750
+      }
+    };
+
+    // Global State
+    const state = {
+      data: {
+        nodes: [],  // array of node objects {id, core, x, y, vx, vy}
+        links: []   // array of link objects {source, target, relationship, type}
+      },
+      ui: {
+        width: 0,
+        height: 0,
+        svg: null,
+        nodesGroup: null,
+        linksGroup: null,
+        linkLabelsGroup: null,
+        simulation: null
+      }
+    };
+
+    // --- Data Handling ---
+
+    /**
+     * ConceptNet API Integration
+     * 
+     * We're using ConceptNet 5.7, an open-source knowledge graph that connects words and phrases 
+     * with labeled, weighted relationships. The API endpoint we're using is:
+     * https://api.conceptnet.io/c/en/{word}
+     * 
+     * Key relationship types:
+     * - IsA: Taxonomic relationships (e.g., "a cat is an animal")
+     * - HasA: Possession relationships (e.g., "a car has wheels")
+     * - PartOf: Part/whole relationships (e.g., "a wheel is part of a car")
+     * - UsedFor: Functional relationships (e.g., "a pen is used for writing")
+     * - CapableOf: Capabilities (e.g., "a bird can fly")
+     * - HasProperty: Attributes (e.g., "fire is hot")
+     * - Antonym: Opposite meanings (e.g., "hot is the opposite of cold")
+     */
+
+    function extractConcepts(statement) {
+      // Common stop words to filter out
+      const stopWords = new Set(['are', 'is', 'the', 'than', 'and', 'but', 'or', 'for', 'in', 'to', 'of']);
+      
+      // Get all meaningful words
+      const words = statement
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter(word => 
+          // Keep words that are:
+          // 1. Not stop words
+          // 2. At least 3 characters long
+          word.length >= 3 && !stopWords.has(word)
+        );
+      
+      // Return unique words
+      return [...new Set(words)];
+    }
+
+    async function fetchConceptNetData(concept) {
+      const encoded = encodeURIComponent(concept.replace(/\s+/g, '_'));
+      const url = `${CONFIG.API_BASE}/c/en/${encoded}?limit=10`; // Increased limit temporarily to find more potential matches
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        return data.edges || [];
+      } catch (err) {
+        console.error('Error fetching ConceptNet data:', err);
+        return [];
+      }
+    }
+
+    function classifyRelationship(relLabel) {
+      const supportingRels = ['UsedFor', 'CapableOf', 'HasProperty', 'HasA'];
+      const conflictingRels = ['Antonym', 'DistinctFrom', 'NotCapableOf'];
+      if (supportingRels.includes(relLabel)) return 'support';
+      if (conflictingRels.includes(relLabel)) return 'conflict';
+      return 'neutral';
+    }
+
+    function processConceptNetEdge(edge) {
+      // Only include edges where both source and target are English words
+      const isEnglish = (text) => /^[a-zA-Z\s]+$/.test(text);
+      
+      const sourceLabel = edge.start.label;
+      const targetLabel = edge.end.label;
+      
+      if (!isEnglish(sourceLabel) || !isEnglish(targetLabel)) {
+        return null;
+      }
+
+      return {
+        source: sourceLabel,
+        target: targetLabel,
+        relationship: edge.rel.label,
+        type: classifyRelationship(edge.rel.label)
+      };
+    }
+
+    // --- Visualization ---
+    function initializeVisualization() {
+      const container = document.querySelector('.visualization-container');
+      state.ui.width = container.clientWidth;
+      state.ui.height = container.clientHeight;
+
+      state.ui.svg = d3.select('#visualization')
+        .attr('width', state.ui.width)
+        .attr('height', state.ui.height);
+
+      state.ui.linksGroup = d3.select('#links');
+      state.ui.linkLabelsGroup = d3.select('#link-labels');
+      state.ui.nodesGroup = d3.select('#nodes');
+
+      // Modified force simulation parameters
+      state.ui.simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(d => d.id).distance(150)) // Increased distance
+        .force('charge', d3.forceManyBody()
+          .strength(d => d.core ? -800 : -400)) // Increased repulsion
+        .force('center', d3.forceCenter(state.ui.width / 2, state.ui.height / 2))
+        .force('collision', d3.forceCollide().radius(60)) // Increased collision radius
+        .force('x', d3.forceX(state.ui.width / 2).strength(0.05)) // Reduced x-centering force
+        .force('y', d3.forceY(state.ui.height / 2).strength(0.05)); // Reduced y-centering force
+    }
+
+    function updateVisualization(nodes, links) {
+      // Store in global state (helps with window resize or re-renders)
+      state.data.nodes = nodes;
+      state.data.links = links;
+
+      // Update simulation data
+      state.ui.simulation
+        .nodes(state.data.nodes)
+        .on('tick', onTick);
+
+      state.ui.simulation.force('link')
+        .links(state.data.links);
+
+      // JOIN links
+      const linkSelection = state.ui.linksGroup
+        .selectAll('.link')
+        .data(state.data.links, d => d.source.id + '-' + d.target.id + '-' + d.relationship);
+
+      linkSelection.exit().remove();
+      linkSelection.enter()
+        .append('line')
+        .attr('class', d => `link link-${d.type}`)
+        .merge(linkSelection);
+
+      // JOIN link labels (optional)
+      const labelSelection = state.ui.linkLabelsGroup
+        .selectAll('.link-label')
+        .data(state.data.links, d => d.source.id + '-' + d.target.id + '-' + d.relationship);
+
+      labelSelection.exit().remove();
+      labelSelection.enter()
+        .append('text')
+        .attr('class', 'link-label')
+        .attr('dy', '-5')
+        .text(d => d.relationship)
+        .merge(labelSelection);
+
+      // JOIN node groups
+      const nodeGroups = state.ui.nodesGroup
+        .selectAll('.node-group')
+        .data(state.data.nodes, d => d.id);
+
+      nodeGroups.exit().remove();
+      const nodeEnter = nodeGroups.enter()
+        .append('g')
+        .attr('class', 'node-group')
+        .call(d3.drag()
+          .on('start', dragStarted)
+          .on('drag', dragged)
+          .on('end', dragEnded)
+        );
+      
+      // One circle per group
+      nodeEnter.append('circle')
+        .attr('class', d => `node ${d.core ? 'node-core' : ''}`)
+        .attr('r', CONFIG.VISUALIZATION.NODE_SIZE / 2);
+      
+      // One label per group
+      nodeEnter.append('text')
+        .attr('class', 'node-text')
+        .attr('dy', '0.35em')
+        .text(d => d.id);
+
+      nodeEnter.merge(nodeGroups);
+
+      // Finally, restart the simulation
+      state.ui.simulation.alpha(1).restart();
+
+      // Tick function to position everything
+      function onTick() {
+        // Add boundary constraints
+        state.data.nodes.forEach(d => {
+          const radius = CONFIG.VISUALIZATION.NODE_SIZE;
+          d.x = Math.max(radius, Math.min(state.ui.width - radius, d.x));
+          d.y = Math.max(radius, Math.min(state.ui.height - radius, d.y));
+        });
+
+        state.ui.linksGroup.selectAll('.link')
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        state.ui.linkLabelsGroup.selectAll('.link-label')
+          .attr('x', d => (d.source.x + d.target.x) / 2)
+          .attr('y', d => (d.source.y + d.target.y) / 2);
+
+        state.ui.nodesGroup.selectAll('.node-group')
+          .attr('transform', d => `translate(${d.x},${d.y})`);
+      }
+    }
+
+    // --- Drag Handlers ---
+    function dragStarted(event, d) {
+      if (!event.active) state.ui.simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragEnded(event, d) {
+      if (!event.active) state.ui.simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    // --- Form Submission ---
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+      const statement = document.getElementById('statement').value;
+      const loadingEl = document.getElementById('loading');
+      if (!statement) return;
+
+      loadingEl.style.display = 'flex';
+      try {
+        // 1) Extract key concepts
+        const concepts = extractConcepts(statement);
+
+        // 2) Fetch edges for each concept
+        const allEdges = [];
+        for (const concept of concepts) {
+          const edges = await fetchConceptNetData(concept);
+          allEdges.push({ concept, edges });
+        }
+
+        // 3) Find shared concepts between our input words
+        const conceptConnections = new Map(); // Track how many times each concept appears
+        allEdges.forEach(({ edges }) => {
+          edges.forEach(edge => {
+            const processed = processConceptNetEdge(edge);
+            if (processed) {
+              const targetConcept = processed.target;
+              conceptConnections.set(
+                targetConcept, 
+                (conceptConnections.get(targetConcept) || 0) + 1
+              );
+            }
+          });
+        });
+
+        // 4) Convert to nodes & links with priority for shared concepts
+        const nodeMap = {};
+        const links = [];
+
+        // Mark core nodes
+        concepts.forEach(concept => {
+          nodeMap[concept] = { id: concept, core: true };
+        });
+
+        // Process edges with priority for shared concepts
+        allEdges.forEach(({ concept, edges }) => {
+          edges
+            .map(edge => ({
+              edge,
+              processed: processConceptNetEdge(edge),
+              sharedScore: edge.weight || 0
+            }))
+            .filter(({ processed }) => processed !== null)
+            // Prioritize edges where:
+            // 1. The target concept is shared between multiple input words
+            // 2. The edge has a higher weight
+            // 3. The relationship type is more meaningful
+            .sort((a, b) => {
+              const aShared = conceptConnections.get(a.processed.target) || 0;
+              const bShared = conceptConnections.get(b.processed.target) || 0;
+              if (aShared !== bShared) return bShared - aShared;
+              return b.sharedScore - a.sharedScore;
+            })
+            // Take only top 5 most relevant edges per concept
+            .slice(0, 5)
+            .forEach(({ processed }) => {
+              // Add nodes
+              nodeMap[processed.source] = nodeMap[processed.source] || { id: processed.source };
+              nodeMap[processed.target] = nodeMap[processed.target] || { id: processed.target };
+              // Add link
+              links.push(processed);
+            });
+        });
+
+        // Filter out nodes that have no connections
+        const connectedNodeIds = new Set([
+          ...links.map(l => l.source),
+          ...links.map(l => l.target)
+        ]);
+        
+        const nodes = Object.values(nodeMap).filter(node => 
+          node.core || connectedNodeIds.has(node.id)
+        );
+
+        // 5) Update visualization
+        updateVisualization(nodes, links);
+
+      } catch (err) {
+        console.error('Error processing statement:', err);
+      } finally {
+        loadingEl.style.display = 'none';
+      }
+    }
+
+    // --- Window Resize Handler ---
+    function onResize() {
+      const container = document.querySelector('.visualization-container');
+      state.ui.width = container.clientWidth;
+      state.ui.height = container.clientHeight;
+      state.ui.svg
+        .attr('width', state.ui.width)
+        .attr('height', state.ui.height);
+
+      // Re-center force
+      state.ui.simulation.force('center')
+        .x(state.ui.width / 2)
+        .y(state.ui.height / 2);
+
+      // Optionally reheat or not:
+      state.ui.simulation.alpha(0.5).restart();
+    }
+
+    // --- Initialization ---
+    function init() {
+      initializeVisualization();
+      document.getElementById('conceptForm')
+        .addEventListener('submit', handleFormSubmit);
+
+      window.addEventListener('resize', _.debounce(onResize, 250));
+    }
+
+    // --- Load Dependencies ---
+    async function loadDependencies() {
+      // Load D3
+      const d3Script = document.createElement('script');
+      d3Script.src = 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js';
+      document.head.appendChild(d3Script);
+
+      // Load Lodash
+      const lodashScript = document.createElement('script');
+      lodashScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js';
+      document.head.appendChild(lodashScript);
+
+      await Promise.all([
+        new Promise(resolve => d3Script.onload = resolve),
+        new Promise(resolve => lodashScript.onload = resolve)
+      ]);
+
+      init();
+    }
+
+    loadDependencies();
+  </script>
+</body>
+</html>
