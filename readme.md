@@ -22,19 +22,22 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
-[Next Token Predictor](https://lab.simonwisdom.com/token-guess-game) - Guess the name token in a sentence
-
-[Web Browser Agent](https://lab.simonwisdom.com/agent-web-browsing) - A hobbled web browsing agent demo
-
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
 
 [Pixel Wave v2](https://lab.simonwisdom.com/pixel-wave-audioreactive) - An audioreactive version
 
 [Pixel Wave](https://lab.simonwisdom.com/pixel-wave) - A pixelated hypnotic animation
 
-[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory [Work in progress] - a game inspired by [Universal Paperclips](https://www.decisionproblem.com/paperclips/index2.html)
-
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
+
+## Not quite working
+
+
+[Next Token Predictor](https://lab.simonwisdom.com/token-guess-game) - Guess the name token in a sentence
+
+[Web Browser Agent](https://lab.simonwisdom.com/agent-web-browsing) - A hobbled web browsing agent demo
+
+[Scaling](https://lab.simonwisdom.com/scaling-game) - AI Factory [Work in progress] - a game inspired by [Universal Paperclips](https://www.decisionproblem.com/paperclips/index2.html)
 
 <footer>
 Inspired by <a href="https://tools.simonwillison.net">Simon Willison's tools page.</a>

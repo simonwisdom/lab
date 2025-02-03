@@ -83,8 +83,8 @@
                             <option value="free">Free (Gemini Flash 1.5)</option>
                             <option value="anthropic">Anthropic (BYO API Key)</option>
                             <option value="openai">OpenAI (BYO API Key)</option>
-                            <option value="gemini">Gemini (BYO API Key)</option>
-                            <option value="togetherai">TogetherAI (BYO API Key)</option>
+                            <option value="google">Google (BYO API Key)</option>
+                            <option value="togetherai">Together AI (BYO API Key)</option>
                         </select>
 
                         <div id="apiKeyGroup" class="api-key-section">
@@ -307,7 +307,7 @@
         import { LLMClient } from './js/llm-client.js';
 
         // Initialize state
-        let client = new LLMClient();
+        const client = new LLMClient();
         let isProcessing = false;
         let results = [];
         let modelPricing = [];
@@ -334,33 +334,29 @@
         const outputCost = document.getElementById('outputCost');
         const totalCost = document.getElementById('totalCost');
 
-        // Provider change handler
+        // Add function to load pricing data
+        async function loadPricingData() {
+            try {
+                modelPricing = await client.loadPricingData();
+                updateCostEstimates();
+            } catch (error) {
+                console.error('Error loading pricing data:', error);
+            }
+        }
 
+        // Update provider change handler to load pricing data if needed
         providerSelect.addEventListener('change', async () => {
             const isFree = providerSelect.value === 'free';
             apiKeyGroup.style.display = isFree ? 'none' : 'block';
-
-            // Hide/show cost overview card
-            const costOverviewCard = document.getElementById('costOverview');
-            costOverviewCard.style.display = isFree ? 'none' : 'block';
-
-            // Update client configuration
-            client = new LLMClient({
-                useOwnKey: !isFree,
-                provider: isFree ? 'gemini' : providerSelect.value
-            });
-
-            if (!isFree) {
-                // Load and populate models for the selected provider
-                modelPricing = await client.loadPricingData();
-                modelSelect.innerHTML = modelPricing.map(model => `
-          <option value="${model.name}">${model.name} (${formatPrice(model.promptCost)} in, 
-          ${formatPrice(model.completionCost)} out)</option>
-        `).join('');
+            
+            if (!modelPricing.length && !isFree) {
+                await loadPricingData();
             }
-
             updateCostEstimates();
         });
+
+        // Initial load of pricing data
+        loadPricingData();
 
         // Model change handler 
         modelSelect.addEventListener('change', () => {
@@ -396,11 +392,8 @@
         }
 
         function updateCostEstimates() {
-            const promptTokenCount = estimateTokens(promptInput.value);
-            promptTokens.textContent = promptTokenCount;
-
             const urls = urlsInput.value.trim().split('\n').filter(url => url);
-            urlCount.textContent = urls.length;
+            const promptTokenCount = Math.ceil(promptInput.value.length / 4);
             totalUrls.textContent = urls.length;
 
             const isFree = providerSelect.value === 'free';
@@ -417,22 +410,37 @@
             // Clear URL limit text for paid tiers
             urlLimit.textContent = '';
 
-            const selectedModel = modelPricing.find(m => m.name === modelSelect.value);
+            // Filter models by selected provider
+            const providerModels = modelPricing.filter(m => 
+                m.provider === providerSelect.value.toLowerCase()
+            );
+
+            // Update model select options
+            modelSelect.innerHTML = providerModels
+                .map(model => `
+                    <option value="${model.model}">
+                        ${model.model} ($${(model.inputCost * 1000).toFixed(2)}/M tokens in, 
+                        $${(model.outputCost * 1000).toFixed(2)}/M tokens out)
+                    </option>
+                `).join('');
+
+            const selectedModel = providerModels.find(m => m.model === modelSelect.value);
             if (!selectedModel) return;
 
             const inputTokensPerUrl = promptTokenCount + AVERAGE_PAGE_TOKENS;
 
-            const inputCostPerUrl = (inputTokensPerUrl * selectedModel.promptCost).toFixed(4);
-            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost).toFixed(4);
+            // Convert from per-token to per-URL cost
+            const inputCostPerUrl = (inputTokensPerUrl * selectedModel.inputCost).toFixed(4);
+            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * selectedModel.outputCost).toFixed(4);
 
-            inputCost.textContent = `${inputCostPerUrl}`;
-            outputCost.textContent = `${outputCostPerUrl}`;
+            inputCost.textContent = `$${inputCostPerUrl}`;
+            outputCost.textContent = `$${outputCostPerUrl}`;
 
             const totalCostValue = urls.length *
-                (inputTokensPerUrl * selectedModel.promptCost +
-                    ESTIMATED_OUTPUT_TOKENS * selectedModel.completionCost);
+                (inputTokensPerUrl * selectedModel.inputCost +
+                    ESTIMATED_OUTPUT_TOKENS * selectedModel.outputCost);
 
-            totalCost.textContent = `${totalCostValue.toFixed(4)}`;
+            totalCost.textContent = `$${totalCostValue.toFixed(4)}`;
         }
 
         async function processUrl(url) {
