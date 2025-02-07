@@ -22,6 +22,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+[Stealth](https://lab.simonwisdom.com/stealh) - Steal the orbs and avoid the guards
+
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
 
 [Pixel Wave v2](https://lab.simonwisdom.com/pixel-wave-audioreactive) - An audioreactive version

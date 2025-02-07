@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stealth Mission</title>
+  <link href="https://cdn.jsdelivr.net/npm/@tailwindcss/ui@latest/dist/tailwind-ui.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.22.20/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide-react@latest/umd/lucide-react.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/common.js"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col items-center justify-center">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Game configuration
+    const CONFIG = {
+      PLAYER_SIZE: 30,
+      GUARD_SIZE: 24,
+      COLLECTIBLE_SIZE: 15,
+      MOVEMENT_SPEED: 4,
+      GUARD_SPEED: 2,
+      VISION_ANGLE: 60,
+      VISION_DISTANCE: 150,
+      CANVAS_WIDTH: 800,
+      CANVAS_HEIGHT: 600,
+      MAX_LEVEL: 10,
+      MIN_OBSTACLE_SIZE: 40,
+      MAX_OBSTACLE_SIZE: 150,
+      BASE_OBSTACLES: 3, // Base number of obstacles at level 1
+      OBSTACLES_PER_LEVEL: 1, // Additional obstacles per level
+    };
+
+    // Sound effects (using AudioContext)
+    const AudioManager = {
+      context: null,
+      sounds: {},
+
+      init() {
+        this.context = new (window.AudioContext || window.webkitAudioContext)();
+        this.createSound('caught', [440, 330, 220], 0.5);
+        this.createSound('win', [440, 554, 659], 0.3);
+        this.createSound('footstep', [220], 0.1);
+      },
+
+      createSound(name, frequencies, duration) {
+        const oscillators = frequencies.map(freq => {
+          const osc = this.context.createOscillator();
+          const gain = this.context.createGain();
+          osc.frequency.value = freq;
+          osc.connect(gain);
+          gain.connect(this.context.destination);
+          return { freq, gain };
+        });
+        
+        this.sounds[name] = {
+          play: () => {
+            const time = this.context.currentTime;
+            oscillators.forEach(({ freq, gain }) => {
+              const osc = this.context.createOscillator();
+              const newGain = this.context.createGain();
+              osc.frequency.value = freq;
+              osc.connect(newGain);
+              newGain.connect(this.context.destination);
+              osc.start(time);
+              newGain.gain.setValueAtTime(0.2, time);
+              newGain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+              osc.stop(time + duration);
+            });
+          }
+        };
+      }
+    };
+
+    // Map generation utilities
+    const MapGenerator = {
+      isValidPosition(x, y, width, height, existingObjects, padding = 50) {
+        // Check canvas bounds with padding for playability
+        if (x < padding || x + width > CONFIG.CANVAS_WIDTH - padding ||
+            y < padding || y + height > CONFIG.CANVAS_HEIGHT - padding) {
+          return false;
+        }
+
+        // Check collision with existing objects
+        for (const obj of existingObjects) {
+          if (x < obj.x + obj.width + padding &&
+              x + width + padding > obj.x &&
+              y < obj.y + obj.height + padding &&
+              y + height + padding > obj.y) {
+            return false;
+          }
+        }
+
+        // Ensure start area (top-left) and end area (bottom-right) remain accessible
+        const startArea = { x: 0, y: 0, width: 100, height: 100 };
+        const endArea = { x: CONFIG.CANVAS_WIDTH - 100, y: CONFIG.CANVAS_HEIGHT - 100, width: 100, height: 100 };
+        if (this.checkCollision({ x, y, width, height }, startArea, padding) ||
+            this.checkCollision({ x, y, width, height }, endArea, padding)) {
+          return false;
+        }
+
+        return true;
+      },
+
+      checkCollision(rect1, rect2, padding = 0) {
+        return rect1.x < rect2.x + rect2.width + padding &&
+               rect1.x + rect1.width + padding > rect2.x &&
+               rect1.y < rect2.y + rect2.height + padding &&
+               rect1.y + rect1.height + padding > rect2.y;
+      },
+
+      generateObstacles(level) {
+        const obstacles = [];
+        const numObstacles = CONFIG.BASE_OBSTACLES + 
+          (level - 1) * CONFIG.OBSTACLES_PER_LEVEL;
+
+        let attempts = 0;
+        const maxAttempts = 100;
+
+        while (obstacles.length < numObstacles && attempts < maxAttempts) {
+          const width = Math.floor(Math.random() * 
+            (CONFIG.MAX_OBSTACLE_SIZE - CONFIG.MIN_OBSTACLE_SIZE)) + CONFIG.MIN_OBSTACLE_SIZE;
+          const height = Math.floor(Math.random() * 
+            (CONFIG.MAX_OBSTACLE_SIZE - CONFIG.MIN_OBSTACLE_SIZE)) + CONFIG.MIN_OBSTACLE_SIZE;
+          
+          // Random position
+          const x = Math.floor(Math.random() * (CONFIG.CANVAS_WIDTH - width - 100)) + 50;
+          const y = Math.floor(Math.random() * (CONFIG.CANVAS_HEIGHT - height - 100)) + 50;
+
+          if (this.isValidPosition(x, y, width, height, obstacles)) {
+            obstacles.push({ x, y, width, height });
+          }
+          attempts++;
+        }
+
+        return obstacles;
+      },
+
+      generateCollectibles(obstacles) {
+        const collectibles = [];
+        const numCollectibles = Math.floor(
+          Math.random() * (CONFIG.MAX_COLLECTIBLES - CONFIG.MIN_COLLECTIBLES + 1)
+        ) + CONFIG.MIN_COLLECTIBLES;
+
+        for (let i = 0; i < numCollectibles; i++) {
+          let attempts = 0;
+          while (attempts < 50) {
+            const x = Math.floor(Math.random() * (CONFIG.CANVAS_WIDTH - 100)) + 50;
+            const y = Math.floor(Math.random() * (CONFIG.CANVAS_HEIGHT - 100)) + 50;
+
+            if (this.isValidPosition(x, y, CONFIG.COLLECTIBLE_SIZE, CONFIG.COLLECTIBLE_SIZE, 
+                [...obstacles, { x: 0, y: 0, width: 100, height: 100 }])) {
+              collectibles.push({ x, y });
+              break;
+            }
+            attempts++;
+          }
+        }
+        return collectibles;
+      },
+
+      generateGuardPath(obstacles) {
+        const path = [];
+        const numPoints = Math.floor(Math.random() * 3) + 3; // 3-5 points
+        let attempts = 0;
+
+        while (path.length < numPoints && attempts < 50) {
+          const x = Math.floor(Math.random() * (CONFIG.CANVAS_WIDTH - 100)) + 50;
+          const y = Math.floor(Math.random() * (CONFIG.CANVAS_HEIGHT - 100)) + 50;
+
+          if (this.isValidPosition(x, y, CONFIG.GUARD_SIZE, CONFIG.GUARD_SIZE, obstacles)) {
+            path.push([x, y]);
+          }
+          attempts++;
+        }
+
+        return path;
+      },
+
+      generateGuards(obstacles) {
+        const guards = [];
+        const numGuards = Math.floor(
+          Math.random() * (CONFIG.MAX_GUARDS - CONFIG.MIN_GUARDS + 1)
+        ) + CONFIG.MIN_GUARDS;
+
+        for (let i = 0; i < numGuards; i++) {
+          const path = this.generateGuardPath(obstacles);
+          if (path.length >= 3) {
+            guards.push({
+              x: path[0][0],
+              y: path[0][1],
+              angle: 0,
+              pathIndex: 0,
+              path
+            });
+          }
+        }
+        return guards;
+      }
+    };
+
+    const StealthGame = () => {
+      const [showInstructions, setShowInstructions] = React.useState(true);
+      const [startTime, setStartTime] = React.useState(Date.now());
+      const [obstacles, setObstacles] = React.useState([]);
+      const [player, setPlayer] = React.useState({ x: 50, y: 50 });
+      const [velocity, setVelocity] = React.useState({ vx: 0, vy: 0 });
+      const [guards, setGuards] = React.useState([]);
+      const [gameState, setGameState] = React.useState('playing');
+      const [collectibles, setCollectibles] = React.useState([]);
+      const [totalCollectibles, setTotalCollectibles] = React.useState(0);
+      const [level, setLevel] = React.useState(1);
+      const [bestTimes, setBestTimes] = React.useState(
+        JSON.parse(localStorage.getItem('stealthBestTimes') || '{}')
+      );
+
+      // Modified MapGenerator methods to respect level-based difficulty
+      const generateLeveledMap = (currentLevel) => {
+        const safeLevel = Math.min(currentLevel, CONFIG.MAX_LEVEL);
+        const newObstacles = MapGenerator.generateObstacles(safeLevel);
+        
+        // Generate collectibles avoiding obstacles
+        const newCollectibles = [];
+        for (let i = 0; i < safeLevel; i++) {
+          let attempts = 0;
+          while (attempts < 50) {
+            const x = Math.floor(Math.random() * (CONFIG.CANVAS_WIDTH - 100)) + 50;
+            const y = Math.floor(Math.random() * (CONFIG.CANVAS_HEIGHT - 100)) + 50;
+
+            if (MapGenerator.isValidPosition(x, y, CONFIG.COLLECTIBLE_SIZE, CONFIG.COLLECTIBLE_SIZE, 
+                [...newObstacles, { x: 0, y: 0, width: 100, height: 100 }])) {
+              newCollectibles.push({ x, y });
+              break;
+            }
+            attempts++;
+          }
+        }
+
+        // Generate guards with paths avoiding obstacles
+        const newGuards = [];
+        for (let i = 0; i < safeLevel; i++) {
+          const path = MapGenerator.generateGuardPath(newObstacles);
+          if (path.length >= 3) {
+            newGuards.push({
+              x: path[0][0],
+              y: path[0][1],
+              angle: 0,
+              pathIndex: 0,
+              path
+            });
+          }
+        }
+
+        return { obstacles: newObstacles, collectibles: newCollectibles, guards: newGuards };
+      };
+
+      // Initialize game on component mount - modify to not start until instructions are closed
+      React.useEffect(() => {
+        if (!showInstructions) {
+          initializeLevel(1);
+        }
+      }, [showInstructions]);
+
+      const initializeLevel = (levelNumber) => {
+        const { obstacles: newObstacles, collectibles: newCollectibles, guards: newGuards } = 
+          generateLeveledMap(levelNumber);
+
+        setStartTime(Date.now());
+        setPlayer({ x: 50, y: 50 });
+        setVelocity({ vx: 0, vy: 0 });
+        setGameState('playing');
+        setObstacles(newObstacles);
+        setCollectibles(newCollectibles);
+        setTotalCollectibles(newCollectibles.length);
+        setGuards(newGuards);
+        setLevel(levelNumber);
+      };
+
+      // Reset game state (now resets to level 1)
+      const resetGame = () => {
+        initializeLevel(1);
+      };
+
+      // Progress to next level
+      const nextLevel = () => {
+        initializeLevel(level + 1);
+      };
+
+      // Initialize audio on first interaction
+      React.useEffect(() => {
+        const initAudio = () => {
+          AudioManager.init();
+          window.removeEventListener('keydown', initAudio);
+        };
+        window.addEventListener('keydown', initAudio);
+        return () => window.removeEventListener('keydown', initAudio);
+      }, []);
+
+      // Collision detection helper
+      const checkCollision = (x, y, obstacles) => {
+        const playerRadius = CONFIG.PLAYER_SIZE / 2;
+        return obstacles.some(obs => 
+          x - playerRadius < obs.x + obs.width &&
+          x + playerRadius > obs.x &&
+          y - playerRadius < obs.y + obs.height &&
+          y + playerRadius > obs.y
+        );
+      };
+
+      // Update the handleKeyDown callback to handle both win progression and loss restart
+      const handleKeyDown = React.useCallback((e) => {
+        if (gameState === 'won' && level < CONFIG.MAX_LEVEL) {
+          nextLevel();
+          return;
+        }
+        
+        if (gameState === 'caught') {
+          resetGame();
+          return;
+        }
+        
+        if (gameState !== 'playing') return;
+
+        setVelocity(v => {
+          let { vx, vy } = v;
+          switch(e.key) {
+            case 'ArrowUp': vy = -CONFIG.MOVEMENT_SPEED; break;
+            case 'ArrowDown': vy = CONFIG.MOVEMENT_SPEED; break;
+            case 'ArrowLeft': vx = -CONFIG.MOVEMENT_SPEED; break;
+            case 'ArrowRight': vx = CONFIG.MOVEMENT_SPEED; break;
+            default: break;
+          }
+          return { vx, vy };
+        });
+      }, [gameState, level, nextLevel, resetGame]);
+
+      const handleKeyUp = React.useCallback((e) => {
+        setVelocity(v => {
+          let { vx, vy } = v;
+          switch(e.key) {
+            case 'ArrowUp':
+            case 'ArrowDown': vy = 0; break;
+            case 'ArrowLeft':
+            case 'ArrowRight': vx = 0; break;
+            default: break;
+          }
+          return { vx, vy };
+        });
+      }, []);
+
+      // Game loop with modified win condition
+      React.useEffect(() => {
+        let animId;
+        let lastUpdate = 0;
+        
+        const loop = (timestamp) => {
+          if (gameState === 'playing') {
+            // Update every 16ms (roughly 60fps)
+            if (timestamp - lastUpdate >= 16) {
+              lastUpdate = timestamp;
+
+              // Move player with collision detection
+              setPlayer(prev => {
+                let { vx, vy } = velocity;
+                const speed = Math.sqrt(vx*vx + vy*vy);
+                if (speed > CONFIG.MOVEMENT_SPEED) {
+                  const ratio = CONFIG.MOVEMENT_SPEED / speed;
+                  vx *= ratio;
+                  vy *= ratio;
+                }
+
+                // Try movement on each axis separately
+                const newX = Math.min(Math.max(prev.x + vx, CONFIG.PLAYER_SIZE), 
+                  CONFIG.CANVAS_WIDTH - CONFIG.PLAYER_SIZE);
+                const newY = Math.min(Math.max(prev.y + vy, CONFIG.PLAYER_SIZE), 
+                  CONFIG.CANVAS_HEIGHT - CONFIG.PLAYER_SIZE);
+
+                // Only allow movement if no collision
+                const finalPos = {
+                  x: checkCollision(newX, prev.y, obstacles) ? prev.x : newX,
+                  y: checkCollision(prev.x, newY, obstacles) ? prev.y : newY
+                };
+
+                // Play footstep sound if moving
+                if ((finalPos.x !== prev.x || finalPos.y !== prev.y) && 
+                    timestamp % 250 < 16) {
+                  AudioManager.sounds.footstep?.play();
+                }
+
+                return finalPos;
+              });
+
+              // Move guards
+              setGuards(prevGuards => {
+                return prevGuards.map(guard => {
+                  const { path, pathIndex } = guard;
+                  const [targetX, targetY] = path[pathIndex];
+                  const dx = targetX - guard.x;
+                  const dy = targetY - guard.y;
+                  const dist = Math.sqrt(dx*dx + dy*dy);
+
+                  if (dist < CONFIG.GUARD_SPEED) {
+                    const newIndex = (pathIndex + 1) % path.length;
+                    const angle = Math.atan2(
+                      path[newIndex][1] - targetY,
+                      path[newIndex][0] - targetX
+                    ) * 180 / Math.PI;
+
+                    return { 
+                      ...guard, 
+                      x: targetX, 
+                      y: targetY, 
+                      angle, 
+                      pathIndex: newIndex 
+                    };
+                  } else {
+                    const moveX = (dx / dist) * CONFIG.GUARD_SPEED;
+                    const moveY = (dy / dist) * CONFIG.GUARD_SPEED;
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    return { 
+                      ...guard, 
+                      x: guard.x + moveX, 
+                      y: guard.y + moveY, 
+                      angle 
+                    };
+                  }
+                });
+              });
+
+              // Check vision cones
+              guards.forEach(g => {
+                const dx = player.x - g.x;
+                const dy = player.y - g.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+                if (distance < CONFIG.VISION_DISTANCE) {
+                  const angleToPlayer = Math.atan2(dy, dx) * 180 / Math.PI;
+                  const angleDiff = Math.abs(((angleToPlayer - g.angle + 180 + 360) % 360) - 180);
+                  if (angleDiff < CONFIG.VISION_ANGLE / 2) {
+                    AudioManager.sounds.caught?.play();
+                    setGameState('caught');
+                  }
+                }
+              });
+
+              // Check collectibles
+              setCollectibles(prev => {
+                const newCollectibles = prev.filter(c => {
+                  const dx = player.x - c.x;
+                  const dy = player.y - c.y;
+                  const distance = Math.sqrt(dx*dx + dy*dy);
+                  return distance > CONFIG.PLAYER_SIZE;
+                });
+                
+                if (newCollectibles.length < prev.length) {
+                  AudioManager.sounds.win?.play();
+                }
+                
+                return newCollectibles;
+              });
+
+              // Check win condition
+              if (
+                collectibles.length === 0 &&
+                Math.abs(player.x - 750) < CONFIG.PLAYER_SIZE &&
+                Math.abs(player.y - 550) < CONFIG.PLAYER_SIZE
+              ) {
+                AudioManager.sounds.win?.play();
+                const completionTime = Date.now() - startTime;
+                
+                // Update best time for this level
+                const newBestTimes = { ...bestTimes };
+                if (!newBestTimes[level] || completionTime < newBestTimes[level]) {
+                  newBestTimes[level] = completionTime;
+                  setBestTimes(newBestTimes);
+                  localStorage.setItem('stealthBestTimes', JSON.stringify(newBestTimes));
+                }
+                
+                setGameState('won');
+              }
+            }
+          }
+          animId = requestAnimationFrame(loop);
+        };
+
+        animId = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(animId);
+      }, [gameState, velocity, guards, player, collectibles, startTime, bestTimes, level]);
+
+      // Keyboard event listeners
+      React.useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+          window.removeEventListener('keydown', handleKeyDown);
+          window.removeEventListener('keyup', handleKeyUp);
+        };
+      }, [handleKeyDown, handleKeyUp]);
+
+      // Vision cone path generator
+      const createVisionConePath = (guard) => {
+        const angleRad = (guard.angle * Math.PI) / 180;
+        const leftAngleRad = angleRad - (CONFIG.VISION_ANGLE * Math.PI) / 360;
+        const rightAngleRad = angleRad + (CONFIG.VISION_ANGLE * Math.PI) / 360;
+        const x1 = guard.x + Math.cos(leftAngleRad) * CONFIG.VISION_DISTANCE;
+        const y1 = guard.y + Math.sin(leftAngleRad) * CONFIG.VISION_DISTANCE;
+        const x2 = guard.x + Math.cos(rightAngleRad) * CONFIG.VISION_DISTANCE;
+        const y2 = guard.y + Math.sin(rightAngleRad) * CONFIG.VISION_DISTANCE;
+        return `M ${guard.x} ${guard.y} L ${x1} ${y1} A ${CONFIG.VISION_DISTANCE} ${CONFIG.VISION_DISTANCE} 0 0 1 ${x2} ${y2} Z`;
+      };
+
+      // Format time for display
+      const formatTime = (timeInMs) => {
+        const timeInSeconds = Math.floor(timeInMs / 1000);
+        const minutes = Math.floor(timeInSeconds / 60);
+        const seconds = timeInSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      };
+
+      const currentTime = gameState === 'playing' ? Date.now() - startTime : 0;
+
+      return (
+        <div className="flex flex-col items-center">
+          {!showInstructions && (
+            <div className="text-gray-300 text-xl flex gap-6 mb-6">
+              <span>Level: {level}</span>
+              <span>Time: {formatTime(currentTime)}</span>
+              <span>Best Time: {bestTimes[level] ? formatTime(bestTimes[level]) : '--:--'}</span>
+              <span>Collected: {totalCollectibles - collectibles.length}/{totalCollectibles}</span>
+            </div>
+          )}
+          
+          <div className="relative bg-gray-800 rounded-lg overflow-hidden shadow-2xl">
+            <svg width={CONFIG.CANVAS_WIDTH} height={CONFIG.CANVAS_HEIGHT} className="bg-gray-900">
+              {/* Background grid */}
+              <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a1a1a" strokeWidth="1"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+
+              {/* Goal area */}
+              <circle cx="750" cy="550" r={CONFIG.PLAYER_SIZE} fill="#4ade80" />
+              
+              {/* Obstacles */}
+              {obstacles.map((obs, i) => (
+                <rect
+                  key={`obstacle-${i}`}
+                  x={obs.x}
+                  y={obs.y}
+                  width={obs.width}
+                  height={obs.height}
+                  fill="#374151"
+                  stroke="#4b5563"
+                  strokeWidth="2"
+                />
+              ))}
+
+              {/* Guard paths */}
+              {guards.map((guard, i) => (
+                <polyline
+                  key={`path-${i}`}
+                  points={guard.path.map(([x, y]) => `${x},${y}`).join(' ')}
+                  fill="none"
+                  stroke="#6b7280"
+                  strokeWidth="1"
+                  strokeDasharray="5,5"
+                />
+              ))}
+
+              {/* Guard vision cones */}
+              {guards.map((guard, i) => (
+                <path
+                  key={`vision-${i}`}
+                  d={createVisionConePath(guard)}
+                  fill="#fcd34d"
+                  opacity="0.2"
+                >
+                  <animate
+                    attributeName="opacity"
+                    values="0.1;0.2;0.1"
+                    dur="2s"
+                    repeatCount="indefinite"
+                  />
+                </path>
+              ))}
+
+              {/* Guards */}
+              {guards.map((guard, i) => (
+                <g key={`guard-${i}`}>
+                  <circle
+                    cx={guard.x}
+                    cy={guard.y}
+                    r={CONFIG.GUARD_SIZE / 2}
+                    fill="#ef4444"
+                  />
+                  {/* Guard direction indicator */}
+                  <line
+                    x1={guard.x}
+                    y1={guard.y}
+                    x2={guard.x + Math.cos(guard.angle * Math.PI / 180) * 20}
+                    y2={guard.y + Math.sin(guard.angle * Math.PI / 180) * 20}
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                </g>
+              ))}
+
+              {/* Collectibles */}
+              {collectibles.map((c, i) => (
+                <g key={`collectible-${i}`}>
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={CONFIG.COLLECTIBLE_SIZE / 2}
+                    fill="#4ade80"
+                    opacity="0.8"
+                  >
+                    <animate
+                      attributeName="r"
+                      values={`${CONFIG.COLLECTIBLE_SIZE/2};${CONFIG.COLLECTIBLE_SIZE/2-2};${CONFIG.COLLECTIBLE_SIZE/2}`}
+                      dur="1s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                  <circle
+                    cx={c.x}
+                    cy={c.y}
+                    r={CONFIG.COLLECTIBLE_SIZE / 2 + 3}
+                    fill="none"
+                    stroke="#4ade80"
+                    strokeWidth="1"
+                    opacity="0.5"
+                  >
+                    <animate
+                      attributeName="opacity"
+                      values="0.5;0.1;0.5"
+                      dur="1.5s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                </g>
+              ))}
+
+              {/* Player */}
+              <g transform={`translate(${player.x},${player.y})`}>
+                <circle
+                  r={CONFIG.PLAYER_SIZE / 2}
+                  fill="#3b82f6"
+                  stroke="#1d4ed8"
+                  strokeWidth="3"
+                >
+                  <animate
+                    attributeName="r"
+                    values={`${CONFIG.PLAYER_SIZE/2};${CONFIG.PLAYER_SIZE/2-3};${CONFIG.PLAYER_SIZE/2}`}
+                    dur="1s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+                {/* Player movement trail */}
+                {velocity.vx !== 0 || velocity.vy !== 0 ? (
+                  <circle
+                    r={CONFIG.PLAYER_SIZE / 2.5}
+                    fill="#60a5fa"
+                    opacity="0.5"
+                  >
+                    <animate
+                      attributeName="opacity"
+                      values="0.5;0;0.5"
+                      dur="0.5s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                ) : null}
+                {/* Player highlight ring */}
+                <circle
+                  r={CONFIG.PLAYER_SIZE / 2 + 5}
+                  fill="none"
+                  stroke="#93c5fd"
+                  strokeWidth="2"
+                  opacity="0.6"
+                >
+                  <animate
+                    attributeName="opacity"
+                    values="0.6;0.2;0.6"
+                    dur="1.5s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              </g>
+            </svg>
+
+            {/* Instructions Modal */}
+            {showInstructions && (
+              <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
+                <div className="bg-gray-900 p-8 rounded-lg text-center max-w-md border border-gray-700 shadow-xl">
+                  <h2 className="text-4xl font-bold mb-6 text-white">How to Play</h2>
+                  <div className="text-white space-y-4 mb-8">
+                    <p className="text-gray-300">Use arrow keys to move your agent (blue circle).</p>
+                    <p className="text-gray-300">Collect all green dots, avoid guard vision cones, and reach the green exit!</p>
+                  </div>
+                  <button
+                    onClick={() => setShowInstructions(false)}
+                    className="bg-blue-500 text-white px-8 py-4 rounded-lg text-xl font-semibold hover:bg-blue-600 transition-colors"
+                  >
+                    Start Game
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Game over/win overlay */}
+            {gameState !== 'playing' && !showInstructions && (
+              <div className="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center">
+                <div className="bg-gray-800 p-8 rounded-lg text-center border border-gray-700">
+                  <h2 className="text-3xl font-bold mb-4 text-white">
+                    {gameState === 'caught' ? '🚨 Caught!' : 'Level Complete!'}
+                  </h2>
+                  <p className="text-gray-300 mb-2">
+                    {gameState === 'caught' 
+                      ? 'A guard spotted you! Try to stay out of their vision cones.'
+                      : `Level ${level} completed in ${formatTime(Date.now() - startTime)}!`
+                    }
+                  </p>
+                  {gameState === 'won' && bestTimes[level] === Date.now() - startTime && (
+                    <p className="text-green-400 font-bold mb-4">New Level Best Time! 🎉</p>
+                  )}
+                  <div className="flex gap-4 justify-center">
+                    <button
+                      onClick={resetGame}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      Restart from Level 1 (or press any key)
+                    </button>
+                    {gameState === 'won' && level < CONFIG.MAX_LEVEL && (
+                      <button
+                        onClick={nextLevel}
+                        className="bg-green-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-green-700 transition-colors"
+                      >
+                        Next Level (or press any key)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Mount the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<StealthGame />);
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    
+    /* Override footer link color */
+    a {
+      color: rgb(209, 213, 219) !important; /* This is the equivalent of text-gray-300 */
+    }
+  </style>
+</body>
+</html>
