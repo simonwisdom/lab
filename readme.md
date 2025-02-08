@@ -22,7 +22,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
-[Stealth](https://lab.simonwisdom.com/stealh) - Steal the orbs and avoid the guards
+[Stealth](https://lab.simonwisdom.com/stealth) - Steal the orbs and avoid the guards
 
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing
 
