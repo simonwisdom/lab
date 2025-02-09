@@ -22,6 +22,9 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+
+[Mold](https://lab.simonwisdom.com/mold) - Watch it grow
+
 [Stealth](https://lab.simonwisdom.com/stealth) - Steal the orbs and avoid the guards
 
 [Paint the ocean](https://lab.simonwisdom.com/ocean) - Pixel paint mixing

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mold Growth Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/common.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #000;
+        }
+        canvas {
+            border: 1px solid #333;
+        }
+        footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 1000;
+        }
+        footer p, footer a {
+            color: white;
+            text-decoration: none;
+        }
+        footer img {
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        class Spore {
+            constructor(x, y, parentHue = null) {
+                this.pos = createVector(x, y);
+                this.vel = p5.Vector.random2D().mult(random(0.2, 0.4));
+                this.size = random(0.5, 1.5);
+                this.age = 0;
+                this.lifetime = random(100, 200);
+                this.hue = parentHue || random(30, 60);
+                this.energyLevel = 1;
+                this.wiggleOffset = random(1000);
+            }
+
+            grow() {
+                // Add slight noise-based movement
+                let angle = noise(
+                    this.pos.x * 0.01, 
+                    this.pos.y * 0.01, 
+                    this.wiggleOffset
+                ) * TWO_PI * 2;
+                
+                this.vel.rotate(map(noise(this.age * 0.01), 0, 1, -0.1, 0.1));
+                this.vel.limit(0.5);
+                this.pos.add(this.vel);
+                
+                // Keep within canvas bounds
+                this.pos.x = constrain(this.pos.x, 0, width);
+                this.pos.y = constrain(this.pos.y, 0, height);
+                
+                this.age++;
+                this.energyLevel = map(this.age, 0, this.lifetime, 1, 0);
+            }
+
+            display() {
+                colorMode(HSB, 360, 100, 100, 1);
+                noStroke();
+                
+                // Create a soft, fuzzy look with multiple overlapping circles
+                for (let i = 0; i < 3; i++) {
+                    let alpha = map(i, 0, 3, 0.1, 0.01) * this.energyLevel;
+                    fill(this.hue, 30, 95, alpha);
+                    circle(
+                        this.pos.x + random(-1, 1), 
+                        this.pos.y + random(-1, 1), 
+                        this.size * (i + 1) * 2
+                    );
+                }
+                
+                colorMode(RGB);
+            }
+
+            isDead() {
+                return this.age > this.lifetime;
+            }
+
+            canSpread() {
+                return this.age > 20 && this.age < this.lifetime * 0.8 && random() < 0.1;
+            }
+        }
+
+        class Colony {
+            constructor(x, y) {
+                this.spores = [new Spore(x, y)];
+                this.maxSpores = 300;  // Limit colony size
+            }
+
+            update() {
+                // Update existing spores
+                let newSpores = [];
+                for (let i = this.spores.length - 1; i >= 0; i--) {
+                    let spore = this.spores[i];
+                    spore.grow();
+
+                    // Remove dead spores
+                    if (spore.isDead()) {
+                        this.spores.splice(i, 1);
+                        continue;
+                    }
+
+                    // Possibly create new spores
+                    if (spore.canSpread() && this.spores.length < this.maxSpores) {
+                        let numNew = floor(random(1, 3));
+                        for (let j = 0; j < numNew; j++) {
+                            newSpores.push(new Spore(
+                                spore.pos.x + random(-5, 5),
+                                spore.pos.y + random(-5, 5),
+                                spore.hue + random(-5, 5)
+                            ));
+                        }
+                    }
+                }
+                
+                // Add new spores, respecting maximum
+                let available = this.maxSpores - this.spores.length;
+                newSpores = newSpores.slice(0, available);
+                this.spores.push(...newSpores);
+            }
+
+            display() {
+                for (let spore of this.spores) {
+                    spore.display();
+                }
+            }
+        }
+
+        let colonies = [];
+        let isDrawing = false;
+        let lastPoint;
+        const MIN_DISTANCE = 10;
+
+        function setup() {
+            createCanvas(800, 600);
+            background(0);
+            colorMode(HSB, 360, 100, 100);
+            blendMode(ADD);
+        }
+
+        function draw() {
+            background(0, 0.1);
+
+            if (isDrawing && mouseIsPressed) {
+                let mousePos = createVector(mouseX, mouseY);
+                if (!lastPoint || p5.Vector.dist(lastPoint, mousePos) > MIN_DISTANCE) {
+                    colonies.push(new Colony(mouseX, mouseY));
+                    lastPoint = mousePos.copy();
+                }
+            }
+
+            for (let colony of colonies) {
+                colony.update();
+                colony.display();
+            }
+        }
+
+        function mousePressed() {
+            isDrawing = true;
+            colonies.push(new Colony(mouseX, mouseY));
+            lastPoint = createVector(mouseX, mouseY);
+        }
+
+        function mouseReleased() {
+            isDrawing = false;
+            lastPoint = null;
+        }
+
+        function keyPressed() {
+            if (key === ' ') {
+                colonies = [];
+                background(0);
+            }
+        }
+    </script>
+</body>
+</html>
