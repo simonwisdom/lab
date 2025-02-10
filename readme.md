@@ -22,7 +22,6 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
-
 [Mold](https://lab.simonwisdom.com/mold) - Watch it grow
 
 [Stealth](https://lab.simonwisdom.com/stealth) - Steal the orbs and avoid the guards
@@ -36,6 +35,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 [Snake](https://lab.simonwisdom.com/snake) - Snake game v1
 
 ## Work in Progress
+
+[Newspeak House Grantmaking Exercise](https://nwspk.github.io/political-awards-2025/) - A frontend to look at projects I scraped as part of a grantmaking exercise for the Newpeak House Fellowship
 
 [Semantic Relationship Mapping](https://lab.simonwisdom.com/semantic-mapping) - Explore how concepts are connected in natural language
 
