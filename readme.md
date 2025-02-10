@@ -37,7 +37,7 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Work in Progress
 
-[Semantic Relationship Mapping](https://lab.simonwisdom.com/token-guess-game) - Explore how concepts are connected in natural language
+[Semantic Relationship Mapping](https://lab.simonwisdom.com/semantic-mapping) - Explore how concepts are connected in natural language
 
 [Next Token Predictor](https://lab.simonwisdom.com/token-guess-game) - Guess the name token in a sentence
 
