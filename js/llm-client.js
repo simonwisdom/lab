@@ -49,7 +49,8 @@ export class LLMClient {
             const csvText = await response.text();
             const lines = csvText.split('\n').filter(line => line.trim());
             
-            return lines.slice(1).map(line => {
+            // Store the pricing data in the instance variable
+            this.pricingData = lines.slice(1).map(line => {
                 const [provider, model, _, __, inputCost, outputCost] = line
                     .split(',')
                     .map(v => v.trim().replace(/^"|"$/g, ''));
@@ -57,12 +58,15 @@ export class LLMClient {
                 return {
                     provider: provider.toLowerCase(),
                     model: model,
+                    name: model,
                     inputCost: parseFloat(inputCost.replace(/[^0-9.]/g, '')),
                     outputCost: parseFloat(outputCost.replace(/[^0-9.]/g, ''))
                 };
             }).filter(({ provider }) => 
                 Object.values(SUPPORTED_PROVIDERS).includes(provider)
             );
+            
+            return this.pricingData;
             
         } catch (error) {
             console.error('Error loading pricing data:', error);
@@ -72,6 +76,11 @@ export class LLMClient {
 
     async initialize() {
         if (this.initialized) return;
+
+        // Load pricing data during initialization
+        if (!this.pricingData) {
+            await this.loadPricingData();
+        }
 
         if (this.config.useOwnKey) {
             try {
