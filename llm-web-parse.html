@@ -349,6 +349,14 @@
         .checkbox-label input[type="checkbox"] {
             cursor: pointer;
         }
+
+        .token-info {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #666;
+            border-top: 1px solid #eee;
+            padding-top: 0.5rem;
+        }
     </style>
 
     <script type="module">
@@ -526,6 +534,14 @@
                     const response = await client.sendMessage(
                         `Content from webpage:\n\n${cleanContent}\n\nPrompt:\n${prompt}`
                     );
+                    
+                    // Add logging to inspect response structure
+                    console.log('OpenRouter response:', response);
+
+                    // Safely handle cost information
+                    const costDisplay = response.cost 
+                        ? `<div class="cost-info">Cost: $${response.cost?.totalCost?.toFixed(4) || 'N/A'}</div>`
+                        : '';
 
                     results.push({
                         url,
@@ -537,7 +553,9 @@
                     resultDiv.querySelector('.status').className = 'status success';
                     resultDiv.querySelector('.status').innerHTML = `
                         ${response.text}
-                        ${response.cost ? `<div class="cost-info">Cost: $${response.cost.totalCost.toFixed(4)}</div>` : ''}
+                        <div class="token-info">
+                            Tokens: ${response.cost.promptTokens} prompt + ${response.cost.responseTokens} response = ${response.cost.totalTokens} total
+                        </div>
                     `;
                 } catch (error) {
                     console.error(`Error processing ${url}:`, error);
@@ -569,7 +587,9 @@
                 URL: r.url,
                 Analysis: r.analysis,
                 RawPageContent: r.content,
-                Cost: r.cost ? `$${r.cost.totalCost.toFixed(4)}` : 'N/A'
+                PromptTokens: r.tokens?.prompt || 'N/A',
+                ResponseTokens: r.tokens?.response || 'N/A',
+                TotalTokens: r.tokens?.total || 'N/A'
             })));
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
