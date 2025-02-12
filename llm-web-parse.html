@@ -75,45 +75,38 @@
             <div class="card">
                 <div class="card-header">
                     <div class="step-number">3</div>
-                    <h2>Select Provider</h2>
+                    <h2>Select Model</h2>
                 </div>
                 <div class="card-content">
                     <div class="form-group">
-                        <select id="provider" class="form-control">
-                            <option value="free">Free - Gemini Flash 1.5</option>
-                            <option value="openrouter">OpenRouter (Bring Your Own API Key)</option>
-                        </select>
-
-                        <div id="apiKeyGroup" class="api-key-section">
-                            <div class="form-group api-key-container">
-                                <label for="apiKey">API Key</label>
-                                <div class="input-with-button">
-                                    <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
-                                    <a href="https://openrouter.ai/settings/keys" target="_blank" class="btn btn-secondary btn-sm">Get Key</a>
-                                </div>
+                        <div class="form-group api-key-container">
+                            <label for="apiKey">OpenRouter API Key</label>
+                            <div class="input-with-button">
+                                <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
+                                <a href="https://openrouter.ai/settings/keys" target="_blank" class="btn btn-secondary btn-sm">Get Key</a>
                             </div>
+                        </div>
 
-                            <div class="form-group">
-                                <label for="model">Model</label>
-                                <select id="model" class="form-control">
-                                    <option value="anthropic/claude-3.5-sonnet">claude-3.5-sonnet</option>
-                                    <option value="anthropic/claude-3.5-haiku">claude-3.5-haiku</option>
-                                    <option value="google/gemini-flash-1.5">gemini-flash-1.5</option>
-                                    <option value="google/gemini-flash-1.5-8b">gemini-flash-1.5-8b</option>
-                                    <option value="google/gemini-flash-2.0-001">gemini-flash-2.0-001</option>
-                                    <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
-                                    <option value="mistral/mistral-nemo">mistral-nemo</option>
-                                    <option value="deepseek/deepseek-chat">deepseek-chat</option>
-                                    <option value="meta/llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
-                                </select>
-                                <div class="custom-model-container">
-                                    <label for="useCustomModel" class="checkbox-label">
-                                        <input type="checkbox" id="useCustomModel"> Use custom model string
-                                    </label>
-                                    <input type="text" id="customModel" class="form-control" 
-                                        placeholder="e.g., anthropic/claude-3-opus" 
-                                        style="display: none;">
-                                </div>
+                        <div class="form-group">
+                            <label for="model">Model</label>
+                            <select id="model" class="form-control">
+                                <option value="anthropic/claude-3.5-sonnet">claude-3.5-sonnet</option>
+                                <option value="anthropic/claude-3.5-haiku">claude-3.5-haiku</option>
+                                <option value="google/gemini-flash-1.5">gemini-flash-1.5</option>
+                                <option value="google/gemini-flash-1.5-8b">gemini-flash-1.5-8b</option>
+                                <option value="google/gemini-flash-2.0-001">gemini-flash-2.0-001</option>
+                                <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
+                                <option value="mistral/mistral-nemo">mistral-nemo</option>
+                                <option value="deepseek/deepseek-chat">deepseek-chat</option>
+                                <option value="meta/llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
+                            </select>
+                            <div class="custom-model-container">
+                                <label for="useCustomModel" class="checkbox-label">
+                                    <input type="checkbox" id="useCustomModel"> Use custom model string
+                                </label>
+                                <input type="text" id="customModel" class="form-control" 
+                                    placeholder="e.g., anthropic/claude-3-opus" 
+                                    style="display: none;">
                             </div>
                         </div>
                     </div>
@@ -371,14 +364,11 @@
         // Constants
         const CONFIG = {
             AVERAGE_PAGE_TOKENS: 2000,
-            FREE_URL_LIMIT: 10, 
             ESTIMATED_OUTPUT_TOKENS: 500,
-            // Add any other config values here
+            // Removed FREE_URL_LIMIT
         };
 
         // UI Elements
-        const providerSelect = document.getElementById('provider');
-        const apiKeyGroup = document.getElementById('apiKeyGroup');
         const apiKeyInput = document.getElementById('apiKey');
         const modelSelect = document.getElementById('model');
         const promptInput = document.getElementById('prompt');
@@ -397,13 +387,6 @@
         function updateUrlCount() {
             const urls = urlsInput.value.trim().split('\n').filter(url => url.trim());
             urlCount.textContent = urls.length;
-            
-            // Update URL limit warning if needed
-            const isFree = providerSelect.value === 'free';
-            if (isFree) {
-                urlLimit.textContent = urls.length > CONFIG.FREE_URL_LIMIT ?
-                    ` (Maximum ${CONFIG.FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
-            }
         }
 
         // Add event listener for URL input
@@ -419,19 +402,6 @@
             customModel.style.display = e.target.checked ? 'block' : 'none';
             modelSelect.style.display = e.target.checked ? 'none' : 'block';
             client.config.model = e.target.checked ? customModel.value : modelSelect.value;
-        });
-
-        // Update provider change handler
-        providerSelect.addEventListener('change', async () => {
-            const isFree = providerSelect.value === 'free';
-            apiKeyGroup.style.display = isFree ? 'none' : 'block';
-            
-            if (!isFree) {
-                client.config.model = modelSelect.value;
-            } else {
-                client.config.model = DEFAULT_MODELS.GEMINI_FLASH_1_5;
-            }
-            updateCostEstimates();
         });
 
         // API key change handler
@@ -451,21 +421,7 @@
 
         function updateCostEstimates() {
             const urls = urlsInput.value.trim().split('\n').filter(url => url);
-            const isFree = providerSelect.value === 'free';
             totalUrls.textContent = urls.length;
-
-            if (isFree) {
-                urlLimit.textContent = urls.length > CONFIG.FREE_URL_LIMIT ?
-                    ` (Maximum ${CONFIG.FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
-
-                inputCost.textContent = '$0.00';
-                outputCost.textContent = '$0.00';
-                totalCost.textContent = '$0.00';
-                return;
-            }
-
-            // Clear URL limit text for paid tier
-            urlLimit.textContent = '';
             
             // Use approximate costs for estimation
             const approxInputCost = 0.000015; // $0.015 per 1K tokens
@@ -531,31 +487,18 @@
         async function startProcessing() {
             const prompt = promptInput.value.trim();
             const urlList = urlsInput.value.trim().split('\n').filter(url => url);
-            const isFree = providerSelect.value === 'free';
 
             if (!prompt || urlList.length === 0) {
                 showNotification('Please fill in all required fields');
                 return;
             }
 
-            if (isFree && urlList.length > CONFIG.FREE_URL_LIMIT) {
-                showNotification(`Free tier is limited to ${CONFIG.FREE_URL_LIMIT} URLs`, 'warning');
-                return;
-            }
-
-            if (!isFree && !apiKeyInput.value) {
+            if (!apiKeyInput.value) {
                 showNotification('Please enter an API key');
                 return;
             }
 
             if (isProcessing) return;
-
-            try {
-                await client.initialize();
-            } catch (error) {
-                showNotification(`Failed to initialize client: ${error.message}`);
-                return;
-            }
 
             isProcessing = true;
             results = [];
