@@ -5,16 +5,14 @@ export class LLMWidget extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
 
+        // Get default models from LLMClient
+        this.defaultModels = LLMClient.getDefaultModels();
+        
         this.providers = [
-            { id: 'free', name: 'Free (Gemini Flash 1.5)' },
-            { id: 'anthropic', name: 'Anthropic (BYO API Key)' },
-            { id: 'openai', name: 'OpenAI (BYO API Key)' },
-            { id: 'google', name: 'Google (BYO API Key)' },
-            { id: 'togetherai', name: 'Together AI (BYO API Key)' }
+            { id: 'openrouter', name: 'OpenRouter (BYO API Key)' }
         ];
 
         this.client = new LLMClient();
-        this.currentPricingData = [];
     }
 
     formatTokenPrice(price) {
@@ -25,69 +23,79 @@ export class LLMWidget extends HTMLElement {
     }
 
     async updateModelsList() {
-        if (!this.client) return;
-
         const modelSelect = this.shadowRoot.getElementById('model');
         const modelGroup = this.shadowRoot.getElementById('modelGroup');
-        const pricingInfo = this.shadowRoot.getElementById('pricingInfo');
         
-        if (!modelSelect || !modelGroup || !pricingInfo) return;
+        if (!modelSelect || !modelGroup) return;
 
-        const providerSelect = this.shadowRoot.getElementById('provider');
-        const isFreeProxy = providerSelect.value === 'free';
+        // Clear existing options first
+        modelSelect.innerHTML = '';
 
-        modelGroup.style.display = isFreeProxy ? 'none' : 'block';
-        pricingInfo.style.display = isFreeProxy ? 'none' : 'block';
+        // Add default option
+        modelSelect.add(new Option('Select a model...', ''));
 
-        if (isFreeProxy) return;
+        // Add all default models
+        Object.entries(this.defaultModels).forEach(([key, value]) => {
+            const displayName = key.replace(/_/g, ' ').toLowerCase()
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            modelSelect.add(new Option(displayName, value));
+        });
 
-        try {
-            const pricingData = await this.client.loadPricingData();
-            this.currentPricingData = pricingData;
+        // Add custom option
+        modelSelect.add(new Option('Custom Model ID...', 'custom'));
 
-            // Normalize the selected provider value
-            const normalizedSelectedProvider = providerSelect.value
-                .toLowerCase()
-                .replace(/\s*\([^)]*\)\s*/g, '')
-                .trim();
-
-            modelSelect.innerHTML = pricingData
-                .filter(model => model.provider === normalizedSelectedProvider)
-                .map(model => `
-                    <option value="${model.model}">
-                        ${model.model} (${this.formatTokenPrice(model.inputCost)} in, 
-                        ${this.formatTokenPrice(model.outputCost)} out)
-                    </option>
-                `).join('');
-
-            this.updatePricingInfo();
-        } catch (error) {
-            console.error('Error updating models list:', error);
+        // Add custom model input field (hidden by default)
+        if (!this.shadowRoot.getElementById('customModelGroup')) {
+            const div = document.createElement('div');
+            div.id = 'customModelGroup';
+            div.style.display = 'none';
+            div.innerHTML = `
+                <input type="text" 
+                    id="customModel" 
+                    placeholder="Enter model ID (e.g., anthropic/claude-3-opus)"
+                    style="margin-top: 0.5rem;">
+            `;
+            modelGroup.appendChild(div);
         }
+
+        // Handle custom model selection
+        modelSelect.addEventListener('change', (e) => {
+            const customModelGroup = this.shadowRoot.getElementById('customModelGroup');
+            const customModelInput = this.shadowRoot.getElementById('customModel');
+            
+            if (e.target.value === 'custom') {
+                customModelGroup.style.display = 'block';
+                if (customModelInput) {
+                    customModelInput.focus();
+                    // Update client model when custom input changes
+                    customModelInput.addEventListener('input', (e) => {
+                        if (this.client) {
+                            this.client.config.model = e.target.value.trim();
+                        }
+                    });
+                }
+            } else {
+                customModelGroup.style.display = 'none';
+                if (this.client) {
+                    this.client.config.model = e.target.value;
+                }
+            }
+        });
     }
 
     updatePricingInfo() {
-        const modelSelect = this.shadowRoot.getElementById('model');
+        // Remove pricing info since OpenRouter handles this differently
         const pricingInfo = this.shadowRoot.getElementById('pricingInfo');
-
-        if (!modelSelect || !pricingInfo) return;
-
-        const selectedModel = this.currentPricingData.find(
-            m => m.model === modelSelect.value
-        );
-
-        if (selectedModel) {
-            pricingInfo.innerHTML = `
-                <div class="pricing-details">
-                    <p>Input: ${this.formatTokenPrice(selectedModel.inputCost)}</p>
-                    <p>Output: ${this.formatTokenPrice(selectedModel.outputCost)}</p>
-                </div>
-            `;
+        if (pricingInfo) {
+            pricingInfo.innerHTML = '';
         }
     }
 
     connectedCallback() {
         this.render();
+        this.updateModelsList();
         this.attachEventListeners();
         // Autofocus message input
         // setTimeout(() => {
@@ -243,6 +251,41 @@ export class LLMWidget extends HTMLElement {
                     display: block;
                     animation: fade 0.2s ease-out;
                 }
+                .api-key-group {
+                    margin-bottom: 1rem;
+                }
+                
+                .model-group {
+                    margin-bottom: 1rem;
+                }
+                
+                .custom-model-input {
+                    margin-top: 0.5rem;
+                }
+                
+                .usage-info {
+                    margin-top: 0.5rem;
+                    padding: 0.5rem;
+                    background: #F3F4F6;
+                    border-radius: 0.375rem;
+                    font-size: 0.875rem;
+                }
+                .api-key-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-bottom: 0.25rem;
+                }
+                
+                .get-key-link {
+                    font-size: 0.875rem;
+                    color: #2563EB;
+                    text-decoration: none;
+                }
+                
+                .get-key-link:hover {
+                    text-decoration: underline;
+                }
             </style>
             
             <div class="container">
@@ -255,26 +298,22 @@ export class LLMWidget extends HTMLElement {
 
                 <!-- Settings Panel -->
                 <div class="settings-panel" id="settingsPanel">
-                    <div class="settings-group">
-                        <label for="provider">Provider</label>
-                        <select id="provider">
-                            ${this.providers.map(p => `
-                                <option value="${p.id}">${p.name}</option>
-                            `).join('')}
-                        </select>
+                    <div class="settings-group api-key-group">
+                        <div class="api-key-header">
+                            <label for="apiKey">OpenRouter API Key</label>
+                            <a href="https://openrouter.ai/settings/keys" 
+                               class="get-key-link" 
+                               target="_blank" 
+                               rel="noopener noreferrer">Get Key</a>
+                        </div>
+                        <input type="password" id="apiKey" placeholder="Enter your OpenRouter API key">
                     </div>
                     
-                    <div class="settings-group" id="modelGroup" style="display: none;">
+                    <div class="settings-group model-group" id="modelGroup">
                         <label for="model">Model</label>
                         <select id="model">
-                            <option value="">Loading models...</option>
+                            <option value="">Select a model...</option>
                         </select>
-                        <div id="pricingInfo"></div>
-                    </div>
-                    
-                    <div class="settings-group" id="apiKeyGroup" style="display: none;">
-                        <label for="apiKey">API Key</label>
-                        <input type="password" id="apiKey" placeholder="Enter your API key">
                     </div>
 
                     <div class="settings-footer">
@@ -298,6 +337,7 @@ export class LLMWidget extends HTMLElement {
                 <div class="loading" id="loading">Processing...</div>
                 <div class="error" id="error"></div>
                 <div class="response" id="response"></div>
+                <div class="usage-info" id="usageInfo" style="display: none;"></div>
             </div>
         `;
     }
@@ -306,7 +346,6 @@ export class LLMWidget extends HTMLElement {
         const saveButton = this.shadowRoot.getElementById('saveSettings');
         const settingsButton = this.shadowRoot.getElementById('settingsButton');
         const settingsPanel = this.shadowRoot.getElementById('settingsPanel');
-        const providerSelect = this.shadowRoot.getElementById('provider');
         const modelGroup = this.shadowRoot.getElementById('modelGroup');
         const apiKeyGroup = this.shadowRoot.getElementById('apiKeyGroup');
         const apiKeyInput = this.shadowRoot.getElementById('apiKey');
@@ -337,55 +376,32 @@ export class LLMWidget extends HTMLElement {
             }
         });
 
-        // Provider change handler
-        providerSelect.addEventListener('change', async () => {
-            const isFreeProxy = providerSelect.value === 'free';
-            modelGroup.style.display = isFreeProxy ? 'none' : 'block';
-            apiKeyGroup.style.display = isFreeProxy ? 'none' : 'block';
-
-            // Update client configuration
-            this.client.config = {
-                ...this.client.config,
-                useOwnKey: !isFreeProxy,
-                provider: isFreeProxy ? 'gemini' : providerSelect.value
-            };
-            this.client.initialized = false;
-
-            if (!isFreeProxy) {
-                await this.updateModelsList();
-            }
-        });
-
         // Model change handler
         this.shadowRoot.getElementById('model')?.addEventListener('change', (e) => {
-            this.updatePricingInfo();
             if (this.client) {
                 this.client.config.model = e.target.value;
-                this.client.initialized = false;
             }
         });
 
         saveButton?.addEventListener('click', () => {
-            // Save the current settings
             const apiKeyInput = this.shadowRoot.getElementById('apiKey');
-            const providerSelect = this.shadowRoot.getElementById('provider');
             const modelSelect = this.shadowRoot.getElementById('model');
+            const customModelInput = this.shadowRoot.getElementById('customModel');
 
             // Update client configuration
             if (this.client) {
                 this.client.config = {
                     ...this.client.config,
                     apiKey: apiKeyInput?.value || '',
-                    provider: providerSelect?.value || 'free',
-                    model: modelSelect?.value || '',
-                    useOwnKey: providerSelect?.value !== 'free'
+                    model: modelSelect?.value === 'custom' ? 
+                        (customModelInput?.value || this.defaultModels.CLAUDE_HAIKU) : 
+                        modelSelect?.value
                 };
-                this.client.initialized = false;
             }
 
             // Close the settings panel
-            settingsPanel.classList.remove('visible');
-            settingsButton.classList.remove('active');
+            this.shadowRoot.getElementById('settingsPanel').classList.remove('visible');
+            this.shadowRoot.getElementById('settingsButton').classList.remove('active');
         });
 
          // API key validation with error handling
@@ -422,17 +438,30 @@ export class LLMWidget extends HTMLElement {
         messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const message = messageInput.value.trim();
+            const usageInfo = this.shadowRoot.getElementById('usageInfo');
             
             if (!message) return;
 
             try {
                 error.textContent = '';
                 response.textContent = '';
+                usageInfo.style.display = 'none';
                 loading.style.display = 'block';
                 sendButton.disabled = true;
 
                 const result = await this.client.sendMessage(message);
-                response.textContent = result;
+                response.textContent = result.text;
+                
+                // Display usage information if available
+                if (result.cost) {
+                    usageInfo.innerHTML = `
+                        <div>Tokens Used:</div>
+                        <div>Prompt: ${result.cost.promptTokens}</div>
+                        <div>Response: ${result.cost.responseTokens}</div>
+                        <div>Total: ${result.cost.totalTokens}</div>
+                    `;
+                    usageInfo.style.display = 'block';
+                }
             } catch (err) {
                 error.textContent = `Error: ${err.message}`;
             } finally {

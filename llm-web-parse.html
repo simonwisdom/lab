@@ -80,25 +80,40 @@
                 <div class="card-content">
                     <div class="form-group">
                         <select id="provider" class="form-control">
-                            <option value="free">Free (Gemini Flash 1.5)</option>
-                            <option value="anthropic">Anthropic (BYO API Key)</option>
-                            <option value="openai">OpenAI (BYO API Key)</option>
-                            <option value="google">Google (BYO API Key)</option>
-                            <option value="togetherai">Together AI (BYO API Key)</option>
+                            <option value="free">Free - Gemini Flash 1.5</option>
+                            <option value="openrouter">OpenRouter (Bring Your Own API Key)</option>
                         </select>
 
                         <div id="apiKeyGroup" class="api-key-section">
-                            <div class="form-group">
+                            <div class="form-group api-key-container">
                                 <label for="apiKey">API Key</label>
-                                <input type="password" id="apiKey" class="form-control"
-                                    placeholder="Enter your API key">
+                                <div class="input-with-button">
+                                    <input type="password" id="apiKey" class="form-control" placeholder="Enter your API key">
+                                    <a href="https://openrouter.ai/settings/keys" target="_blank" class="btn btn-secondary btn-sm">Get Key</a>
+                                </div>
                             </div>
 
                             <div class="form-group">
                                 <label for="model">Model</label>
                                 <select id="model" class="form-control">
-                                    <option value="">Loading models...</option>
+                                    <option value="anthropic/claude-3.5-sonnet">claude-3.5-sonnet</option>
+                                    <option value="anthropic/claude-3.5-haiku">claude-3.5-haiku</option>
+                                    <option value="google/gemini-flash-1.5">gemini-flash-1.5</option>
+                                    <option value="google/gemini-flash-1.5-8b">gemini-flash-1.5-8b</option>
+                                    <option value="google/gemini-flash-2.0-001">gemini-flash-2.0-001</option>
+                                    <option value="openai/gpt-4o-mini">gpt-4o-mini</option>
+                                    <option value="mistral/mistral-nemo">mistral-nemo</option>
+                                    <option value="deepseek/deepseek-chat">deepseek-chat</option>
+                                    <option value="meta/llama-3.3-70b-instruct">llama-3.3-70b-instruct</option>
                                 </select>
+                                <div class="custom-model-container">
+                                    <label for="useCustomModel" class="checkbox-label">
+                                        <input type="checkbox" id="useCustomModel"> Use custom model string
+                                    </label>
+                                    <input type="text" id="customModel" class="form-control" 
+                                        placeholder="e.g., anthropic/claude-3-opus" 
+                                        style="display: none;">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -308,11 +323,59 @@
             border-top: 1px solid #eee;
             padding-top: 0.5rem;
         }
+
+        .input-with-button {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .input-with-button input {
+            flex: 1;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            white-space: nowrap;
+        }
+
+        .custom-model-container {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .custom-model-container label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+        }
+
+        #customModel {
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            cursor: pointer;
+        }
     </style>
 
     <script type="module">
-        // Import the LLM client
+        // Import the LLM client and its default models
         import { LLMClient } from './js/llm-client.js';
+        const { DEFAULT_MODELS } = LLMClient;
 
         // Initialize state
         const client = new LLMClient();
@@ -352,13 +415,47 @@
             }
         }
 
-        // Update provider change handler to load pricing data if needed
+        // Update model selection UI
+        function updateModelSelect() {
+            if (!client.config.useOwnKey) return;
+            
+            modelSelect.innerHTML = Object.entries(DEFAULT_MODELS)
+                .map(([key, value]) => `
+                    <option value="${value}">${value.split('/')[1]}</option>
+                `).join('');
+        }
+
+        // Handle custom model toggle
+        const useCustomModel = document.getElementById('useCustomModel');
+        const customModel = document.getElementById('customModel');
+        useCustomModel.addEventListener('change', (e) => {
+            customModel.style.display = e.target.checked ? 'block' : 'none';
+            modelSelect.style.display = e.target.checked ? 'none' : 'block';
+            
+            if (e.target.checked) {
+                client.config.model = customModel.value;
+            } else {
+                client.config.model = modelSelect.value;
+            }
+        });
+
+        // Handle custom model input
+        customModel.addEventListener('input', (e) => {
+            if (useCustomModel.checked) {
+                client.config.model = e.target.value;
+            }
+        });
+
+        // Update provider change handler
         providerSelect.addEventListener('change', async () => {
             const isFree = providerSelect.value === 'free';
             apiKeyGroup.style.display = isFree ? 'none' : 'block';
             
-            if (!modelPricing.length && !isFree) {
-                await loadPricingData();
+            if (!isFree) {
+                updateModelSelect();
+                client.config.model = modelSelect.value;
+            } else {
+                client.config.model = DEFAULT_MODELS.GEMINI_FLASH_1_5;
             }
             updateCostEstimates();
         });
@@ -366,13 +463,8 @@
         // Initial load of pricing data
         loadPricingData();
 
-        // Model change handler 
-        modelSelect.addEventListener('change', () => {
-            if (client.config.useOwnKey) {
-                client.config.model = modelSelect.value;
-            }
-            updateCostEstimates();
-        });
+        // Initial setup
+        updateModelSelect();
 
         // API key change handler
         apiKeyInput.addEventListener('input', (e) => {
@@ -401,13 +493,12 @@
 
         function updateCostEstimates() {
             const urls = urlsInput.value.trim().split('\n').filter(url => url);
-            const promptTokenCount = Math.ceil(promptInput.value.length / 4);
+            const isFree = providerSelect.value === 'free';
             totalUrls.textContent = urls.length;
 
-            const isFree = providerSelect.value === 'free';
             if (isFree) {
                 urlLimit.textContent = urls.length > FREE_URL_LIMIT ?
-                    ` (Maximum ${FREE_URL_LIMIT} URLs for free. Select a paid provider in step 3 to analyze more.)` : '';
+                    ` (Maximum ${FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
 
                 inputCost.textContent = '$0.00';
                 outputCost.textContent = '$0.00';
@@ -415,39 +506,23 @@
                 return;
             }
 
-            // Clear URL limit text for paid tiers
+            // Clear URL limit text for paid tier
             urlLimit.textContent = '';
-
-            // Filter models by selected provider
-            const providerModels = modelPricing.filter(m => 
-                m.provider === providerSelect.value.toLowerCase()
-            );
-
-            // Update model select options
-            modelSelect.innerHTML = providerModels
-                .map(model => `
-                    <option value="${model.model}">
-                        ${model.model} ($${(model.inputCost * 1000).toFixed(2)}/M tokens in, 
-                        $${(model.outputCost * 1000).toFixed(2)}/M tokens out)
-                    </option>
-                `).join('');
-
-            const selectedModel = providerModels.find(m => m.model === modelSelect.value);
-            if (!selectedModel) return;
-
-            const inputTokensPerUrl = promptTokenCount + AVERAGE_PAGE_TOKENS;
-
-            // Convert from per-token to per-URL cost
-            const inputCostPerUrl = (inputTokensPerUrl * selectedModel.inputCost).toFixed(4);
-            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * selectedModel.outputCost).toFixed(4);
+            
+            // Use approximate costs for estimation
+            const approxInputCost = 0.000015; // $0.015 per 1K tokens
+            const approxOutputCost = 0.000045; // $0.045 per 1K tokens
+            
+            const inputTokensPerUrl = estimateTokens(promptInput.value) + AVERAGE_PAGE_TOKENS;
+            const inputCostPerUrl = (inputTokensPerUrl * approxInputCost).toFixed(4);
+            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * approxOutputCost).toFixed(4);
 
             inputCost.textContent = `$${inputCostPerUrl}`;
             outputCost.textContent = `$${outputCostPerUrl}`;
 
-            const totalCostValue = urls.length *
-                (inputTokensPerUrl * selectedModel.inputCost +
-                    ESTIMATED_OUTPUT_TOKENS * selectedModel.outputCost);
-
+            const totalCostValue = urls.length * 
+                (inputTokensPerUrl * approxInputCost + ESTIMATED_OUTPUT_TOKENS * approxOutputCost);
+            
             totalCost.textContent = `$${totalCostValue.toFixed(4)}`;
         }
 
