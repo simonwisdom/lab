@@ -547,7 +547,12 @@
                         url,
                         content: cleanContent,
                         analysis: response.text,
-                        cost: response.cost
+                        model: useCustomModel.checked ? customModel.value : modelSelect.value,
+                        tokens: {
+                            prompt: response.cost.promptTokens,
+                            response: response.cost.responseTokens,
+                            total: response.cost.totalTokens
+                        }
                     });
 
                     resultDiv.querySelector('.status').className = 'status success';
@@ -585,11 +590,12 @@
         function downloadResults() {
             const csv = Papa.unparse(results.map(r => ({
                 URL: r.url,
+                Model: r.model,
                 Analysis: r.analysis,
                 RawPageContent: r.content,
-                PromptTokens: r.tokens?.prompt || 'N/A',
-                ResponseTokens: r.tokens?.response || 'N/A',
-                TotalTokens: r.tokens?.total || 'N/A'
+                PromptTokens: r.tokens.prompt,
+                ResponseTokens: r.tokens.response,
+                TotalTokens: r.tokens.total
             })));
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
