@@ -300,6 +300,14 @@
         #prompt {
             min-height: 50px;
         }
+
+        .cost-info {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #666;
+            border-top: 1px solid #eee;
+            padding-top: 0.5rem;
+        }
     </style>
 
     <script type="module">
@@ -529,9 +537,9 @@
                 const resultDiv = document.createElement('div');
                 resultDiv.className = 'result-item';
                 resultDiv.innerHTML = `
-          <div class="url">${url}</div>
-          <div class="status">Processing...</div>
-        `;
+                    <div class="url">${url}</div>
+                    <div class="status">Processing...</div>
+                `;
                 document.getElementById('results').insertBefore(resultDiv, document.getElementById('results').firstChild);
 
                 try {
@@ -539,25 +547,29 @@
                     resultDiv.querySelector('.status').textContent = 'Got content, analyzing...';
 
                     const cleanContent = preprocessContent(content);
-                    const analysis = await client.sendMessage(
+                    const response = await client.sendMessage(
                         `Content from webpage:\n\n${cleanContent}\n\nPrompt:\n${prompt}`
                     );
 
                     results.push({
                         url,
                         content: cleanContent,
-                        analysis
+                        analysis: response.text,
+                        cost: response.cost
                     });
 
                     resultDiv.querySelector('.status').className = 'status success';
-                    // Start of Selection
-                    resultDiv.querySelector('.status').textContent = analysis;
+                    resultDiv.querySelector('.status').innerHTML = `
+                        ${response.text}
+                        ${response.cost ? `<div class="cost-info">Cost: $${response.cost.totalCost.toFixed(4)}</div>` : ''}
+                    `;
                 } catch (error) {
                     console.error(`Error processing ${url}:`, error);
                     results.push({
                         url,
                         content: '',
-                        analysis: `Error: ${error.message}`
+                        analysis: `Error: ${error.message}`,
+                        cost: null
                     });
                     resultDiv.querySelector('.status').className = 'status error';
                     resultDiv.querySelector('.status').textContent = `Error: ${error.message}`;
@@ -580,7 +592,8 @@
             const csv = Papa.unparse(results.map(r => ({
                 URL: r.url,
                 Analysis: r.analysis,
-                RawPageContent: r.content
+                RawPageContent: r.content,
+                Cost: r.cost ? `$${r.cost.totalCost.toFixed(4)}` : 'N/A'
             })));
 
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
