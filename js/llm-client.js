@@ -107,7 +107,18 @@ export class LLMClient {
 
     async calculateMessageCost(prompt, response = '') {
         if (!this.pricingData) {
-            await this.loadPricingData();
+            try {
+                await this.loadPricingData();
+            } catch (error) {
+                console.warn('Failed to load pricing data:', error);
+                return null;
+            }
+        }
+
+        // Guard against null pricingData even after load attempt
+        if (!this.pricingData || !Array.isArray(this.pricingData)) {
+            console.warn('Pricing data unavailable');
+            return null;
         }
 
         // Find pricing for current model
