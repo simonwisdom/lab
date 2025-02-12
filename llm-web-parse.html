@@ -294,25 +294,12 @@
             background-color: #fff5f5;
         }
 
-        .notification.warning {
-            border-left: 4px solid #ffc107;
-            background-color: #fff8e6;
-        }
-
         .notification.success {
             border-left: 4px solid var(--color-primary);
             background-color: var(--color-primary-light);
         }
 
-        textarea {
-            font-size: 16px;
-        }
-
-        #urls {
-            min-height: 50px;
-        }
-
-        #prompt {
+        #urls, #prompt {
             min-height: 50px;
         }
 
@@ -362,7 +349,6 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            margin-bottom: 0.5rem;
             cursor: pointer;
             user-select: none;
         }
@@ -381,12 +367,14 @@
         const client = new LLMClient();
         let isProcessing = false;
         let results = [];
-        let modelPricing = [];
 
         // Constants
-        const AVERAGE_PAGE_TOKENS = 2000;
-        const FREE_URL_LIMIT = 10;
-        const ESTIMATED_OUTPUT_TOKENS = 500;
+        const CONFIG = {
+            AVERAGE_PAGE_TOKENS: 2000,
+            FREE_URL_LIMIT: 10, 
+            ESTIMATED_OUTPUT_TOKENS: 500,
+            // Add any other config values here
+        };
 
         // UI Elements
         const providerSelect = document.getElementById('provider');
@@ -405,25 +393,24 @@
         const outputCost = document.getElementById('outputCost');
         const totalCost = document.getElementById('totalCost');
 
-        // Add function to load pricing data
-        async function loadPricingData() {
-            try {
-                modelPricing = await client.loadPricingData();
-                updateCostEstimates();
-            } catch (error) {
-                console.error('Error loading pricing data:', error);
+        // Add URL counting function
+        function updateUrlCount() {
+            const urls = urlsInput.value.trim().split('\n').filter(url => url.trim());
+            urlCount.textContent = urls.length;
+            
+            // Update URL limit warning if needed
+            const isFree = providerSelect.value === 'free';
+            if (isFree) {
+                urlLimit.textContent = urls.length > CONFIG.FREE_URL_LIMIT ?
+                    ` (Maximum ${CONFIG.FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
             }
         }
 
-        // Update model selection UI
-        function updateModelSelect() {
-            if (!client.config.useOwnKey) return;
-            
-            modelSelect.innerHTML = Object.entries(DEFAULT_MODELS)
-                .map(([key, value]) => `
-                    <option value="${value}">${value.split('/')[1]}</option>
-                `).join('');
-        }
+        // Add event listener for URL input
+        urlsInput.addEventListener('input', () => {
+            updateUrlCount();
+            updateCostEstimates();
+        });
 
         // Handle custom model toggle
         const useCustomModel = document.getElementById('useCustomModel');
@@ -431,19 +418,7 @@
         useCustomModel.addEventListener('change', (e) => {
             customModel.style.display = e.target.checked ? 'block' : 'none';
             modelSelect.style.display = e.target.checked ? 'none' : 'block';
-            
-            if (e.target.checked) {
-                client.config.model = customModel.value;
-            } else {
-                client.config.model = modelSelect.value;
-            }
-        });
-
-        // Handle custom model input
-        customModel.addEventListener('input', (e) => {
-            if (useCustomModel.checked) {
-                client.config.model = e.target.value;
-            }
+            client.config.model = e.target.checked ? customModel.value : modelSelect.value;
         });
 
         // Update provider change handler
@@ -452,7 +427,6 @@
             apiKeyGroup.style.display = isFree ? 'none' : 'block';
             
             if (!isFree) {
-                updateModelSelect();
                 client.config.model = modelSelect.value;
             } else {
                 client.config.model = DEFAULT_MODELS.GEMINI_FLASH_1_5;
@@ -460,35 +434,19 @@
             updateCostEstimates();
         });
 
-        // Initial load of pricing data
-        loadPricingData();
-
-        // Initial setup
-        updateModelSelect();
-
         // API key change handler
         apiKeyInput.addEventListener('input', (e) => {
             client.config.apiKey = e.target.value;
         });
 
-        function formatPrice(price) {
-            const pricePerMillion = price * 1000000;
-            return `${pricePerMillion.toFixed(2)}/M tokens`;
-        }
-
         // Helper Functions
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-
         function updateProgress(current, total) {
             const percentage = (current / total) * 100;
             document.querySelector('.progress-fill').style.width = `${percentage}%`;
         }
 
         function estimateTokens(text) {
-            // Rough estimate: 4 characters per token
-            return Math.ceil(text.length / 4);
+            // Consider using a library if precise needed, else remove
         }
 
         function updateCostEstimates() {
@@ -497,8 +455,8 @@
             totalUrls.textContent = urls.length;
 
             if (isFree) {
-                urlLimit.textContent = urls.length > FREE_URL_LIMIT ?
-                    ` (Maximum ${FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
+                urlLimit.textContent = urls.length > CONFIG.FREE_URL_LIMIT ?
+                    ` (Maximum ${CONFIG.FREE_URL_LIMIT} URLs for free. Select OpenRouter in step 3 to analyze more.)` : '';
 
                 inputCost.textContent = '$0.00';
                 outputCost.textContent = '$0.00';
@@ -513,15 +471,15 @@
             const approxInputCost = 0.000015; // $0.015 per 1K tokens
             const approxOutputCost = 0.000045; // $0.045 per 1K tokens
             
-            const inputTokensPerUrl = estimateTokens(promptInput.value) + AVERAGE_PAGE_TOKENS;
+            const inputTokensPerUrl = estimateTokens(promptInput.value) + CONFIG.AVERAGE_PAGE_TOKENS;
             const inputCostPerUrl = (inputTokensPerUrl * approxInputCost).toFixed(4);
-            const outputCostPerUrl = (ESTIMATED_OUTPUT_TOKENS * approxOutputCost).toFixed(4);
+            const outputCostPerUrl = (CONFIG.ESTIMATED_OUTPUT_TOKENS * approxOutputCost).toFixed(4);
 
             inputCost.textContent = `$${inputCostPerUrl}`;
             outputCost.textContent = `$${outputCostPerUrl}`;
 
             const totalCostValue = urls.length * 
-                (inputTokensPerUrl * approxInputCost + ESTIMATED_OUTPUT_TOKENS * approxOutputCost);
+                (inputTokensPerUrl * approxInputCost + CONFIG.ESTIMATED_OUTPUT_TOKENS * approxOutputCost);
             
             totalCost.textContent = `$${totalCostValue.toFixed(4)}`;
         }
@@ -580,8 +538,8 @@
                 return;
             }
 
-            if (isFree && urlList.length > FREE_URL_LIMIT) {
-                showNotification(`Free tier is limited to ${FREE_URL_LIMIT} URLs`, 'warning');
+            if (isFree && urlList.length > CONFIG.FREE_URL_LIMIT) {
+                showNotification(`Free tier is limited to ${CONFIG.FREE_URL_LIMIT} URLs`, 'warning');
                 return;
             }
 
@@ -654,7 +612,7 @@
                 updateProgress(processed, urlList.length);
 
                 if (processed < urlList.length) {
-                    await sleep(1000); // 1 second delay between requests
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between requests
                 }
             }
 
@@ -680,7 +638,6 @@
 
         // Event Listeners
         promptInput.addEventListener('input', updateCostEstimates);
-        urlsInput.addEventListener('input', updateCostEstimates);
         startButton.addEventListener('click', startProcessing);
         downloadButton.addEventListener('click', downloadResults);
 
