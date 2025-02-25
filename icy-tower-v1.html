@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icy Tower Clone</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="./js/common.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #87CEEB;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      position: relative;
+    }
+    
+    h1 {
+      margin: 10px 0;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+    #game-container {
+      position: relative;
+      width: 400px;
+      height: 600px;
+      background: linear-gradient(to bottom, #87CEEB, #1E90FF);
+      border: 4px solid #333;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+    }
+    
+    #player {
+      position: absolute;
+      width: 30px;
+      height: 40px;
+      background-color: #FF6347;
+      border-radius: 5px;
+      z-index: 10;
+      transition: transform 0.1s ease;
+      box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+    }
+    
+    .platform {
+      position: absolute;
+      height: 15px;
+      background: linear-gradient(to bottom, #E0FFFF, #B0E0E6);
+      border: 2px solid #4682B4;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 16px;
+      z-index: 20;
+      min-width: 120px;
+    }
+    
+    #game-over, #start-menu {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 30;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    #game-over {
+      display: none;
+    }
+    
+    button {
+      margin-top: 15px;
+      padding: 8px 16px;
+      background-color: var(--color-primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    
+    button:hover {
+      background-color: var(--color-primary-dark);
+      transform: translateY(-1px);
+    }
+    
+    .combo-text {
+      position: absolute;
+      color: yellow;
+      font-weight: bold;
+      font-size: 20px;
+      z-index: 25;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      animation: fadeUp 1s forwards;
+    }
+    
+    @keyframes fadeUp {
+      0% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-50px); }
+    }
+    
+    /* Body organic effect from style.css */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 30%, var(--color-primary-light) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, var(--color-primary-light) 0%, transparent 40%);
+      opacity: 0.2;
+      z-index: -1;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 450px) {
+      #game-container {
+        width: 320px;
+        height: 480px;
+      }
+    }
+    
+    /* Touch controls for mobile */
+    #touch-controls {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      margin-top: 20px;
+    }
+    
+    .touch-btn {
+      width: 70px;
+      height: 70px;
+      background-color: rgba(255, 255, 255, 0.5);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      user-select: none;
+    }
+    
+    #touch-left {
+      float: left;
+      margin-left: 20px;
+    }
+    
+    #touch-right {
+      float: right;
+      margin-right: 20px;
+    }
+    
+    #touch-jump {
+      margin: 0 auto;
+    }
+    
+    @media (max-width: 768px) {
+      #touch-controls {
+        display: flex;
+        justify-content: space-between;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1 style="margin: 10px 0; position: relative;">Icy Tower</h1>
+  
+  <div id="game-container">
+    <div id="player"></div>
+    <div id="hud">
+      Score: <span id="score">0</span><br>
+      Floor: <span id="floor">0</span><br>
+      Combo: <span id="combo">0</span>
+    </div>
+    <div id="game-over">
+      <h2>Game Over!</h2>
+      <p>Final Score: <span id="final-score">0</span></p>
+      <p>Highest Floor: <span id="highest-floor">0</span></p>
+      <button id="restart-btn" class="btn btn-primary">Play Again</button>
+    </div>
+    <div id="start-menu">
+      <h2>Icy Tower</h2>
+      <p>Jump between platforms to climb as high as possible!</p>
+      <button id="start-btn" class="btn btn-primary">Start Game</button>
+    </div>
+  </div>
+  
+  <div id="touch-controls">
+    <div id="touch-left" class="touch-btn">←</div>
+    <div id="touch-jump" class="touch-btn">↑</div>
+    <div id="touch-right" class="touch-btn">→</div>
+  </div>
+
+  <script type="module">
+    // Import common functionality if needed
+    // import { someFunction } from './js/common.js';
+    // Config - Application constants and settings
+    const CONFIG = {
+      GAME_WIDTH: document.getElementById('game-container').offsetWidth,
+      GAME_HEIGHT: document.getElementById('game-container').offsetHeight,
+      GRAVITY: 0.5,
+      JUMP_FORCE: 12,
+      MOVE_SPEED: 5,
+      PLATFORM_COUNT: 15,
+      PLATFORM_MIN_WIDTH: 60,
+      PLATFORM_MAX_WIDTH: 200,
+      PLATFORM_MIN_GAP: 60,
+      PLATFORM_MAX_GAP: 100,
+      SCROLL_THRESHOLD: 300,
+      SCROLL_SPEED_MIN: 0.8, // Slower initial scroll speed
+      SCROLL_SPEED_MAX: 7,   // Slightly reduced max speed
+      DIFFICULTY_INCREASE_RATE: 0.05, // How quickly difficulty increases (lower = slower)
+      COMBO_TIME: 1500, // ms to maintain combo
+      COMBO_MULTIPLIER: 5,  // Reduced from 10
+      BASE_FLOOR_POINTS: 2, // Reduced from 5
+      HEIGHT_BONUS_RATE: 1, // Reduced from 2
+      PLATFORM_WIDTH_DECREASE_RATE: 0.5 // How quickly platforms get narrower (lower = slower)
+    };
+
+    // State - Single source of truth for application data
+    const state = {
+      player: {
+        x: CONFIG.GAME_WIDTH / 2,
+        y: CONFIG.GAME_HEIGHT / 2, // Start halfway up
+        width: 30,
+        height: 40,
+        velocityX: 0,
+        velocityY: 0,
+        onGround: false,
+        direction: 1,
+        lastPlatform: null,
+        combo: 0,
+        comboTimeout: null
+      },
+      platforms: [],
+      score: 0,
+      floor: 0,
+      highestFloor: 0,
+      scrollSpeed: CONFIG.SCROLL_SPEED_MIN,
+      gameRunning: false,
+      gameStarted: false, // Track if game has been started
+      passiveScoreTimer: null, // Timer for passive score
+      lastScoreUpdate: 0, // Timestamp for last score update
+      controls: {
+        left: false,
+        right: false,
+        jump: false
+      }
+    };
+
+    // DOM elements
+    const gameContainer = document.getElementById('game-container');
+    const playerElement = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const floorDisplay = document.getElementById('floor');
+    const comboDisplay = document.getElementById('combo');
+    const gameOverScreen = document.getElementById('game-over');
+    const startMenu = document.getElementById('start-menu');
+    const finalScoreDisplay = document.getElementById('final-score');
+    const highestFloorDisplay = document.getElementById('highest-floor');
+    const restartButton = document.getElementById('restart-btn');
+    const startButton = document.getElementById('start-btn');
+    const touchLeft = document.getElementById('touch-left');
+    const touchRight = document.getElementById('touch-right');
+    const touchJump = document.getElementById('touch-jump');
+
+    // Core Functions - Business logic and utilities
+    function createPlatform(x, y, width) {
+      const platform = document.createElement('div');
+      platform.className = 'platform';
+      platform.style.left = `${x}px`;
+      platform.style.top = `${y}px`;
+      platform.style.width = `${width}px`;
+      
+      // Store platform data for collision detection
+      const platformData = {
+        element: platform,
+        x: x,
+        y: y,
+        width: width,
+        height: 15,
+        floor: 0 // Will be set by the caller
+      };
+      
+      gameContainer.appendChild(platform);
+      return platformData;
+    }
+
+    function initPlatforms() {
+      // Clear any existing platforms
+      if (state.platforms && state.platforms.length > 0) {
+        state.platforms.forEach(platform => {
+          if (platform.element && platform.element.parentNode) {
+            platform.element.parentNode.removeChild(platform.element);
+          }
+        });
+      }
+      
+      state.platforms = [];
+      
+      // Calculate middle point for starting position
+      const midPoint = CONFIG.GAME_HEIGHT / 2;
+      
+      // Create platforms starting from the bottom
+      let y = CONFIG.GAME_HEIGHT - 20;
+      let floorCount = 0;
+      
+      // Create platforms all the way up to the player's starting position and beyond
+      while (y > midPoint - CONFIG.GAME_HEIGHT / 2) {
+        const width = floorCount === 0 
+                     ? CONFIG.GAME_WIDTH // Bottom floor is full width
+                     : Math.random() * (CONFIG.PLATFORM_MAX_WIDTH - CONFIG.PLATFORM_MIN_WIDTH) + CONFIG.PLATFORM_MIN_WIDTH;
+        
+        const x = floorCount === 0 
+                ? 0 // Bottom floor starts at x=0
+                : Math.random() * (CONFIG.GAME_WIDTH - width);
+                
+        const platform = createPlatform(x, y, width);
+        platform.floor = floorCount; // Explicitly set the floor number
+        state.platforms.push(platform);
+        
+        // Position next platform
+        const gap = Math.random() * (CONFIG.PLATFORM_MAX_GAP - CONFIG.PLATFORM_MIN_GAP) + CONFIG.PLATFORM_MIN_GAP;
+        y -= gap;
+        floorCount++;
+      }
+      
+      // Set the player to start on a platform near the middle
+      // Find a platform near the middle to place the player on
+      let foundStartingPlatform = false;
+      for (let i = 0; i < state.platforms.length; i++) {
+        if (state.platforms[i].y < midPoint && state.platforms[i].y > midPoint - 50) {
+          state.player.x = state.platforms[i].x + state.platforms[i].width / 2 - state.player.width / 2;
+          state.player.y = state.platforms[i].y - state.player.height;
+          state.player.lastPlatform = state.platforms[i];
+          state.floor = state.platforms[i].floor;
+          foundStartingPlatform = true;
+          break;
+        }
+      }
+      
+      // Fallback if no suitable platform was found
+      if (!foundStartingPlatform && state.platforms.length > 0) {
+        const middlePlatform = state.platforms[Math.floor(state.platforms.length / 2)];
+        state.player.x = middlePlatform.x + middlePlatform.width / 2 - state.player.width / 2;
+        state.player.y = middlePlatform.y - state.player.height;
+        state.player.lastPlatform = middlePlatform;
+        state.floor = middlePlatform.floor;
+      }
+    }
+
+    function addNewPlatform() {
+      // Make sure we have at least one platform before trying to add more
+      if (state.platforms.length === 0) {
+        // Create a base platform if none exist
+        const width = CONFIG.GAME_WIDTH;
+        const y = CONFIG.GAME_HEIGHT - 20;
+        const platform = createPlatform(0, y, width);
+        platform.floor = 0;
+        state.platforms.push(platform);
+        return;
+      }
+      
+      // Find the highest platform
+      let highestPlatform = state.platforms[0];
+      let highestFloor = 0;
+      
+      for (let i = 0; i < state.platforms.length; i++) {
+        if (state.platforms[i].y < highestPlatform.y) {
+          highestPlatform = state.platforms[i];
+        }
+        
+        // Also track the highest floor number
+        if (state.platforms[i].floor > highestFloor) {
+          highestFloor = state.platforms[i].floor;
+        }
+      }
+      
+      // Calculate platform width based on floor - wider platforms at start, gradually getting narrower
+      const difficultyFactor = Math.min(state.floor * CONFIG.PLATFORM_WIDTH_DECREASE_RATE / 200, 0.8);
+      const width = Math.max(
+        CONFIG.PLATFORM_MIN_WIDTH, 
+        CONFIG.PLATFORM_MAX_WIDTH * (1 - difficultyFactor)
+      );
+      
+      // Calculate platform position
+      const x = Math.random() * (CONFIG.GAME_WIDTH - width);
+      
+      // Calculate gap between platforms - gradually increases with height
+      const gapIncreaseFactor = 1 + (state.floor / 400); // Subtle increase in gaps
+      const minGap = CONFIG.PLATFORM_MIN_GAP;
+      const maxGap = CONFIG.PLATFORM_MAX_GAP * gapIncreaseFactor;
+      const gap = Math.random() * (maxGap - minGap) + minGap;
+      
+      const y = highestPlatform.y - gap;
+      
+      // Create the platform
+      const platform = createPlatform(x, y, width);
+      platform.floor = highestFloor + 1; // Increment floor number for each new platform
+      state.platforms.push(platform);
+    }
+
+    function checkCollision() {
+      if (state.player.velocityY >= 0) { // Only check when falling
+        for (const platform of state.platforms) {
+          if (state.player.x + state.player.width > platform.x &&
+              state.player.x < platform.x + platform.width &&
+              state.player.y + state.player.height >= platform.y &&
+              state.player.y + state.player.height <= platform.y + platform.height + 5) {
+            
+            // Land on platform
+            state.player.y = platform.y - state.player.height;
+            state.player.velocityY = 0;
+            state.player.onGround = true;
+            
+            // Handle combo system
+            if (state.player.lastPlatform !== null && 
+                platform.floor > state.player.lastPlatform.floor) {
+              
+              // Calculate floor difference
+              const floorDiff = platform.floor - state.player.lastPlatform.floor;
+              
+              // Update combo
+              state.player.combo += floorDiff;
+              updateComboDisplay();
+              
+              // Show combo text
+              showComboText(floorDiff, state.player.x, state.player.y);
+              
+              // Update score based on combo
+              state.score += floorDiff * (1 + Math.floor(state.player.combo / 3) * CONFIG.COMBO_MULTIPLIER);
+              
+              // Reset combo timeout
+              clearTimeout(state.player.comboTimeout);
+              state.player.comboTimeout = setTimeout(() => {
+                state.player.combo = 0;
+                updateComboDisplay();
+              }, CONFIG.COMBO_TIME);
+            }
+            
+            // Update current floor
+            if (platform.floor > state.floor) {
+              // Add points for reaching a new floor
+              const previousFloor = state.floor;
+              state.floor = platform.floor;
+              state.highestFloor = Math.max(state.highestFloor, state.floor);
+              
+              // Calculate points based on new floor reached
+              const floorDifference = state.floor - previousFloor;
+              
+              // Base score for reaching a new floor
+              let newPoints = floorDifference * CONFIG.BASE_FLOOR_POINTS;
+              
+              // Height bonus - higher floors are worth more points
+              const heightBonus = Math.floor(state.floor / 10) * CONFIG.HEIGHT_BONUS_RATE;
+              newPoints += heightBonus;
+              
+              // Apply combo multiplier if active
+              if (state.player.combo > 0) {
+                newPoints *= (1 + Math.floor(state.player.combo / 3));
+              }
+              
+              // Add points to score
+              state.score += newPoints;
+              
+              // No score popup - removed as requested
+              
+              // Increase scroll speed as player climbs - with a gentler curve
+              const progressFactor = Math.min(state.floor * CONFIG.DIFFICULTY_INCREASE_RATE / 50, 1);
+              state.scrollSpeed = CONFIG.SCROLL_SPEED_MIN + 
+                                 progressFactor * (CONFIG.SCROLL_SPEED_MAX - CONFIG.SCROLL_SPEED_MIN);
+              
+              // Log for debugging (remove in production)
+              if (state.floor % 20 === 0) {
+                console.log(`Floor ${state.floor}: Scroll speed is now ${state.scrollSpeed.toFixed(2)}`);
+              }
+            }
+            
+            state.player.lastPlatform = platform;
+            return true;
+          }
+        }
+      }
+      
+      // Not on any platform
+      state.player.onGround = false;
+      return false;
+    }
+
+    function showComboText(floorDiff, x, y) {
+      const comboText = document.createElement('div');
+      comboText.className = 'combo-text';
+      comboText.innerText = `+${floorDiff} Combo!`;
+      comboText.style.left = `${x}px`;
+      comboText.style.top = `${y - 30}px`;
+      
+      gameContainer.appendChild(comboText);
+      
+      // Remove after animation completes
+      setTimeout(() => {
+        if (comboText.parentNode) {
+          comboText.parentNode.removeChild(comboText);
+        }
+      }, 1000);
+    }
+    
+    // Function kept for reference but no longer used - score popups are removed
+    function showScoreText(points, x, y) {
+      // Empty function - score popups have been removed as requested
+    }
+
+    function updateComboDisplay() {
+      comboDisplay.textContent = state.player.combo;
+    }
+
+    function updatePlayerPhysics() {
+      // Apply gravity
+      state.player.velocityY += CONFIG.GRAVITY;
+      
+      // Apply horizontal movement
+      if (state.controls.left) {
+        state.player.velocityX = -CONFIG.MOVE_SPEED * (state.player.onGround ? 1 : 0.8);
+        state.player.direction = -1;
+      } else if (state.controls.right) {
+        state.player.velocityX = CONFIG.MOVE_SPEED * (state.player.onGround ? 1 : 0.8);
+        state.player.direction = 1;
+      } else {
+        // Apply friction when on ground
+        if (state.player.onGround) {
+          state.player.velocityX *= 0.8;
+        } else {
+          state.player.velocityX *= 0.95; // Less friction in air
+        }
+      }
+      
+      // Apply jump
+      if (state.controls.jump && state.player.onGround) {
+        state.player.velocityY = -CONFIG.JUMP_FORCE;
+        state.player.onGround = false;
+        
+        // Add momentum to jump based on horizontal speed
+        const momentumBoost = Math.abs(state.player.velocityX) / CONFIG.MOVE_SPEED;
+        state.player.velocityY -= momentumBoost * 2;
+      }
+      
+      // Reset jump control once used
+      if (!state.player.onGround) {
+        state.controls.jump = false;
+      }
+      
+      // Update position
+      state.player.x += state.player.velocityX;
+      state.player.y += state.player.velocityY;
+      
+      // Screen wrapping for horizontal movement
+      if (state.player.x < -state.player.width) {
+        state.player.x = CONFIG.GAME_WIDTH;
+      } else if (state.player.x > CONFIG.GAME_WIDTH) {
+        state.player.x = -state.player.width;
+      }
+    }
+
+    function scrollPlatforms() {
+      // Check if player is above scroll threshold
+      if (state.player.y < CONFIG.SCROLL_THRESHOLD) {
+        // Push player down
+        const scrollAmount = CONFIG.SCROLL_THRESHOLD - state.player.y;
+        state.player.y = CONFIG.SCROLL_THRESHOLD;
+        
+        // Scroll all platforms down
+        state.platforms.forEach(platform => {
+          platform.y += scrollAmount;
+          platform.element.style.top = `${platform.y}px`;
+        });
+        
+        // Generate new platforms if needed
+        ensureEnoughPlatforms();
+      } else {
+        // Auto-scroll to increase difficulty
+        state.platforms.forEach(platform => {
+          platform.y += state.scrollSpeed;
+          platform.element.style.top = `${platform.y}px`;
+        });
+        
+        state.player.y += state.scrollSpeed;
+      }
+      
+      // Remove platforms that are below the screen
+      cleanupPlatforms();
+    }
+    
+    function ensureEnoughPlatforms() {
+      // Make sure we have platforms in the array before proceeding
+      if (state.platforms.length === 0) {
+        return;
+      }
+      
+      // Find the highest platform
+      let highestPlatform = state.platforms[0];
+      for (let i = 1; i < state.platforms.length; i++) {
+        if (state.platforms[i].y < highestPlatform.y) {
+          highestPlatform = state.platforms[i];
+        }
+      }
+      
+      // Make sure we have platforms extending beyond the top of the screen
+      // Always maintain platforms at least 1.5 screen heights above the player
+      const topOfScreen = -CONFIG.GAME_HEIGHT / 2;
+      
+      while (highestPlatform.y > topOfScreen) {
+        addNewPlatform();
+        highestPlatform = state.platforms[state.platforms.length - 1];
+      }
+    }
+    
+    function cleanupPlatforms() {
+      // Remove platforms that are below the screen
+      for (let i = 0; i < state.platforms.length; i++) {
+        if (state.platforms[i].y > CONFIG.GAME_HEIGHT) {
+          if (state.platforms[i].element && state.platforms[i].element.parentNode) {
+            state.platforms[i].element.parentNode.removeChild(state.platforms[i].element);
+          }
+          state.platforms.splice(i, 1);
+          i--;
+        }
+      }
+      
+      // Safety check - make sure we always have at least one platform
+      if (state.platforms.length === 0) {
+        // Create a base platform if none exist
+        const width = CONFIG.GAME_WIDTH;
+        const y = CONFIG.GAME_HEIGHT - 20;
+        const platform = createPlatform(0, y, width);
+        platform.floor = 0;
+        state.platforms.push(platform);
+      }
+      
+      // Debug - log platform count and floor numbers periodically
+      if (Math.random() < 0.01) { // Only log occasionally to avoid console spam
+        console.log(`Platform count: ${state.platforms.length}, Current floor: ${state.floor}`);
+        console.log(`Floor numbers: ${state.platforms.map(p => p.floor).join(', ')}`);
+      }
+    }
+
+    function checkGameOver() {
+      // Game over if player falls below the screen
+      if (state.player.y > CONFIG.GAME_HEIGHT) {
+        endGame();
+        return true;
+      }
+      return false;
+    }
+
+    function endGame() {
+      state.gameRunning = false;
+      
+      // Clear any timers
+      if (state.passiveScoreTimer) {
+        clearInterval(state.passiveScoreTimer);
+        state.passiveScoreTimer = null;
+      }
+      
+      finalScoreDisplay.textContent = state.score;
+      highestFloorDisplay.textContent = state.highestFloor;
+      gameOverScreen.style.display = 'block';
+      startMenu.style.display = 'none';
+    }
+
+    function resetGame() {
+      // Reset game state
+      state.player.velocityX = 0;
+      state.player.velocityY = 0;
+      state.player.onGround = false;
+      state.player.direction = 1;
+      state.player.lastPlatform = null;
+      state.player.combo = 0;
+      
+      // Clear any timers
+      if (state.player.comboTimeout) {
+        clearTimeout(state.player.comboTimeout);
+      }
+      
+      if (state.passiveScoreTimer) {
+        clearInterval(state.passiveScoreTimer);
+        state.passiveScoreTimer = null;
+      }
+      
+      state.score = 0;
+      state.floor = 0;
+      state.scrollSpeed = CONFIG.SCROLL_SPEED_MIN;
+      state.gameRunning = true;
+      state.lastScoreUpdate = Date.now();
+      
+      // Hide screens
+      gameOverScreen.style.display = 'none';
+      startMenu.style.display = 'none';
+      
+      // Initialize platforms
+      initPlatforms();
+      
+      // Update displays
+      updateUI();
+    }
+    
+    function startGame() {
+      // Hide start menu
+      startMenu.style.display = 'none';
+      
+      // Initialize game if it's the first time
+      if (!state.gameStarted) {
+        state.gameStarted = true;
+        resetGame();
+      } else {
+        // Just resume if already initialized
+        state.gameRunning = true;
+      }
+    }
+
+    // Update DOM to reflect player direction and movement
+    function updatePlayerSprite() {
+      if (state.player.velocityX > 0.5) {
+        playerElement.style.transform = 'scaleX(1)';
+      } else if (state.player.velocityX < -0.5) {
+        playerElement.style.transform = 'scaleX(-1)';
+      }
+    }
+
+    // UI Handlers - DOM manipulation and event listeners
+    function updateUI() {
+      // Update player position and visibility
+      playerElement.style.display = state.gameRunning ? 'block' : 'none';
+      playerElement.style.left = `${state.player.x}px`;
+      playerElement.style.top = `${state.player.y}px`;
+      
+      // Update player sprite direction
+      updatePlayerSprite();
+      
+      // Update HUD
+      scoreDisplay.textContent = state.score;
+      floorDisplay.textContent = state.floor;
+      comboDisplay.textContent = state.player.combo;
+    }
+
+    function setupEventListeners() {
+      // Keyboard controls
+      document.addEventListener('keydown', (e) => {
+        if (!state.gameRunning) return;
+        
+        switch (e.key) {
+          case 'ArrowLeft':
+          case 'a':
+            state.controls.left = true;
+            break;
+          case 'ArrowRight':
+          case 'd':
+            state.controls.right = true;
+            break;
+          case 'ArrowUp':
+          case 'w':
+          case ' ':
+            state.controls.jump = true;
+            break;
+        }
+      });
+      
+      document.addEventListener('keyup', (e) => {
+        switch (e.key) {
+          case 'ArrowLeft':
+          case 'a':
+            state.controls.left = false;
+            break;
+          case 'ArrowRight':
+          case 'd':
+            state.controls.right = false;
+            break;
+        }
+      });
+      
+      // Touch controls
+      touchLeft.addEventListener('touchstart', () => {
+        if (state.gameRunning) {
+          state.controls.left = true;
+        }
+      });
+      
+      touchLeft.addEventListener('touchend', () => {
+        state.controls.left = false;
+      });
+      
+      touchRight.addEventListener('touchstart', () => {
+        if (state.gameRunning) {
+          state.controls.right = true;
+        }
+      });
+      
+      touchRight.addEventListener('touchend', () => {
+        state.controls.right = false;
+      });
+      
+      touchJump.addEventListener('touchstart', () => {
+        if (state.gameRunning) {
+          state.controls.jump = true;
+        }
+      });
+      
+      // Button controls
+      restartButton.addEventListener('click', resetGame);
+      startButton.addEventListener('click', startGame);
+      
+      // Also allow starting with keyboard
+      document.addEventListener('keydown', (e) => {
+        if (!state.gameRunning && !state.gameStarted && (e.key === ' ' || e.key === 'Enter')) {
+          startGame();
+        }
+      });
+    }
+
+    // Game loop
+    function gameLoop() {
+      if (state.gameRunning) {
+        // Update player physics
+        updatePlayerPhysics();
+        
+        // Check for platform collisions
+        checkCollision();
+        
+        // Scroll platforms
+        scrollPlatforms();
+        
+        // Add passive score for height
+        addPassiveScore();
+        
+        // Check game over condition
+        checkGameOver();
+        
+        // Update UI
+        updateUI();
+      }
+      
+      // Continue game loop
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // Add passive score based on height and time
+    function addPassiveScore() {
+      // Add a small amount of score every second based on current floor
+      if (state.gameRunning && state.player.onGround) {
+        // Only add passive score if we don't already have a timer
+        if (!state.passiveScoreTimer) {
+          state.passiveScoreTimer = setInterval(() => {
+            if (state.gameRunning) {
+              // Add points based on current floor - reduced to a smaller amount
+              const passivePoints = Math.max(1, Math.floor(state.floor / 50));
+              state.score += passivePoints;
+              
+              // Update score display
+              updateUI();
+            }
+          }, 2000); // Slowed down to every 2 seconds (was 1 second)
+        }
+      }
+    }
+
+    // Init - Application initialization
+    function init() {
+      // Initialize game configuration
+      CONFIG.GAME_WIDTH = gameContainer.offsetWidth;
+      CONFIG.GAME_HEIGHT = gameContainer.offsetHeight;
+      
+      // Show start menu
+      startMenu.style.display = 'block';
+      
+      // Hide player until game starts
+      playerElement.style.display = 'none';
+      
+      // Init platforms but don't start the game yet
+      initPlatforms();
+      
+      // Ensure we have enough platforms (looking ahead)
+      ensureEnoughPlatforms();
+      
+      setupEventListeners();
+      gameLoop();
+    }
+
+    // Start the application
+    init();
+  </script>
+</body>
+</html>

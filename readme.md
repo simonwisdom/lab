@@ -22,6 +22,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+[Mold](https://lab.simonwisdom.com/icy-tower-v1) - I've always wanted to recreate this game
+
 [Mold](https://lab.simonwisdom.com/mold) - Watch it grow
 
 [Stealth](https://lab.simonwisdom.com/stealth) - Steal the orbs and avoid the guards
