@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basketball Free Throw Simulator</title>
+  <link rel="stylesheet" href="style.css">
+
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      overflow: hidden;
+      position: relative;
+    }
+    
+    #game-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+    
+    .ui-container {
+      position: absolute;
+      bottom: 0.5rem;
+      left: 0;
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      pointer-events: none;
+      padding: 0 1rem;
+      z-index: 2;
+    }
+    
+    .slider-container {
+      background: rgba(255, 255, 255, 0.3);
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      pointer-events: auto;
+      backdrop-filter: blur(5px);
+      min-width: 200px;
+    }
+    
+    .power-meter {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .power-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4CAF50, #FF9800, #F44336);
+      transition: width 0.1s;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    
+    .btn {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.7);
+      border: none;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background-color 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.9);
+    }
+    
+    .stats-container {
+      background: rgba(255, 255, 255, 0.3);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      text-align: center;
+      pointer-events: auto;
+      font-size: 1rem;
+      backdrop-filter: blur(5px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .stats-container p {
+      margin: 0;
+    }
+
+    .instructions {
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    
+    .score-animation {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 4rem;
+      font-weight: bold;
+      color: #4CAF50;
+      text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      animation: scorePopup 1.5s ease-out forwards;
+    }
+
+    @keyframes scorePopup {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+      }
+      50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+    
+    @media (min-width: 768px) {
+      .ui-container {
+        bottom: 1rem;
+      }
+      
+      .slider-container, .stats-container {
+        margin-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  
+  <div class="ui-container">
+    <div class="stats-container">
+      <p>Attempts: <span id="attempts">0</span> • 
+         Scored: <span id="scored">0</span> • 
+         <span id="percentage">0%</span></p>
+      <p class="instructions">Move mouse to position, SPACE to charge & shoot</p>
+    </div>
+    
+    <div class="slider-container">
+      <div class="power-meter">
+        <div class="power-fill" id="power-fill"></div>
+      </div>
+      
+      <div class="controls">
+        <button id="reset-button" class="btn">Reset</button>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    // Constants
+    const PHYSICS = {
+      GRAVITY: new THREE.Vector3(0, -9.8, 0),
+      AIR_RESISTANCE: 0.02,
+      RIM_BOUNCE_FACTOR: 0.7,
+      BACKBOARD_BOUNCE_FACTOR: 0.7,
+      BASKET_RADIUS: 0.7 / 2,
+      BALL_RADIUS: 0.12,
+      SHOT_UPWARD_ANGLE: 0.6,
+      HOOP_GRAVITY_RADIUS: 1.5,
+      HOOP_GRAVITY_STRENGTH: 5.0
+    };
+
+    const UI = {
+      POWER_METER: document.getElementById('power-fill'),
+      RESET_BUTTON: document.getElementById('reset-button'),
+      ATTEMPTS: document.getElementById('attempts'),
+      SCORED: document.getElementById('scored'),
+      PERCENTAGE: document.getElementById('percentage')
+    };
+
+    // Game State Manager
+    class GameState {
+      constructor(game) {
+        this.game = game;
+        this.state = {
+          ball: {
+            mesh: null,
+            body: {
+              position: new THREE.Vector3(),
+              velocity: new THREE.Vector3(),
+              mass: 0.6
+            },
+            isShot: false,
+            isReset: true,
+            isPositioning: true
+          },
+          hoop: {
+            rim: null,
+            backboard: null,
+            net: null
+          },
+          ui: {
+            power: 0,
+            isPowerCharging: false,
+            stats: {
+              attempts: 0,
+              scored: 0
+            },
+            shotResult: null
+          },
+          isDragging: false,
+          lastCollision: null
+        };
+
+        // Bind game methods to state
+        this.state.startPowerCharge = this.game.startPowerCharge.bind(this.game);
+        this.state.releaseShot = this.game.releaseShot.bind(this.game);
+        this.state.shootBasketball = this.game.shootBasketball.bind(this.game);
+        this.state.resetBall = this.game.resetBall.bind(this.game);
+      }
+
+      get() {
+        return this.state;
+      }
+
+      set(newState) {
+        this.state = { ...this.state, ...newState };
+      }
+
+      updateBall(newBallState) {
+        this.state.ball = { ...this.state.ball, ...newBallState };
+      }
+
+      updateUI(newUIState) {
+        this.state.ui = { ...this.state.ui, ...newUIState };
+      }
+    }
+
+    // Physics Engine
+    class PhysicsEngine {
+      constructor(gameState) {
+        this.state = gameState;
+        this.scene = gameState.game.scene;
+        this.ui = null;  // Will be set after construction
+        this.lastBallY = 0;
+        this.scoringZone = {
+          y: 3.05 - 0.15 - 0.1,
+          radius: PHYSICS.BASKET_RADIUS * 0.8
+        };
+      }
+
+      setUI(ui) {
+        this.ui = ui;
+      }
+
+      update(deltaTime) {
+        if (!this.state.get().ball.isShot) return;
+
+        const ballVel = this.state.get().ball.body.velocity;
+        const ballPos = this.state.get().ball.mesh?.position;
+        const rimPos = this.state.get().hoop.rim.position;
+
+        if (!ballPos) return;
+
+        // Store last Y position for scoring detection
+        this.lastBallY = ballPos.y;
+
+        // Apply gravity
+        ballVel.add(PHYSICS.GRAVITY.clone().multiplyScalar(deltaTime));
+
+        // Apply air resistance
+        const speed = ballVel.length();
+        if (speed > 0) {
+          const resistance = ballVel.clone()
+            .normalize()
+            .multiplyScalar(-PHYSICS.AIR_RESISTANCE * speed * speed * deltaTime);
+          ballVel.add(resistance);
+        }
+
+        // Enhanced hoop gravity when ball is near
+        const distanceToHoop = new THREE.Vector3().subVectors(rimPos, ballPos).length();
+        if (distanceToHoop < PHYSICS.HOOP_GRAVITY_RADIUS) {
+          // Calculate direction to hoop
+          const hoopDirection = new THREE.Vector3().subVectors(rimPos, ballPos).normalize();
+          // Stronger pull when closer to hoop (increased from 5.0 to 8.0)
+          const gravityStrength = 8.0 * 
+            (1 - distanceToHoop / PHYSICS.HOOP_GRAVITY_RADIUS) * deltaTime;
+          
+          // Apply gravitational force
+          ballVel.add(hoopDirection.multiplyScalar(gravityStrength));
+        }
+
+        // Update position
+        ballPos.add(ballVel.clone().multiplyScalar(deltaTime));
+
+        // Check for scoring
+        this.checkScoring(ballPos);
+      }
+
+      checkScoring(ballPos) {
+        const state = this.state.get();
+        if (state.ui.shotResult !== null) return;  // Already processed this shot
+
+        const rimPos = state.hoop.rim.position;
+        const distanceToRimXZ = Math.sqrt(
+          Math.pow(ballPos.x - rimPos.x, 2) + 
+          Math.pow(ballPos.z - rimPos.z, 2)
+        );
+
+        // Ball is within scoring zone radius and moving downward
+        if (distanceToRimXZ <= this.scoringZone.radius && 
+            ballPos.y <= this.scoringZone.y && 
+            this.lastBallY > this.scoringZone.y) {
+          
+          // Score!
+          state.ui.stats.scored++;
+          state.ui.shotResult = 'score';
+          
+          // Visual feedback
+          this.showScoringEffect();
+          
+          // Update stats using the UI manager
+          this.ui.updateStats();
+        }
+      }
+
+      showScoringEffect() {
+        // Create a success ring effect
+        const ringGeometry = new THREE.RingGeometry(0.3, 0.4, 32);
+        const ringMaterial = new THREE.MeshBasicMaterial({ 
+          color: 0x00ff00,
+          transparent: true,
+          opacity: 1
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        
+        // Position at rim height
+        const rimPos = this.state.get().hoop.rim.position;
+        ring.position.copy(rimPos);
+        ring.rotation.x = -Math.PI / 2;
+        
+        this.scene.add(ring);
+
+        // Create and show score text animation
+        const scoreText = document.createElement('div');
+        scoreText.className = 'score-animation';
+        scoreText.textContent = 'SCORE!';
+        document.body.appendChild(scoreText);
+
+        // Animate the ring
+        const startTime = Date.now();
+        const animate = () => {
+          const elapsed = (Date.now() - startTime) / 1000;
+          if (elapsed > 1) {
+            this.scene.remove(ring);
+            if (scoreText.parentNode) {
+              scoreText.parentNode.removeChild(scoreText);
+            }
+            return;
+          }
+
+          ring.scale.setScalar(1 + elapsed);
+          ringMaterial.opacity = 1 - elapsed;
+
+          requestAnimationFrame(animate);
+        };
+        animate();
+      }
+
+      handleCollisions() {
+        if (!this.state.get().ball.isShot) return;
+
+        const ballPos = this.state.get().ball.mesh.position;
+        const ballVel = this.state.get().ball.body.velocity;
+
+        // Floor collision
+        if (ballPos.y < PHYSICS.BALL_RADIUS) {
+          ballPos.y = PHYSICS.BALL_RADIUS;
+          ballVel.y = -ballVel.y * 0.7;
+          ballVel.x *= 0.9;
+          ballVel.z *= 0.9;
+
+          if (Math.abs(ballVel.y) < 0.5 && 
+              Math.abs(ballVel.x) < 0.5 && 
+              Math.abs(ballVel.z) < 0.5) {
+            ballVel.set(0, 0, 0);
+            setTimeout(() => this.state.get().resetBall(), 2000);
+          }
+        }
+
+        // Backboard collision
+        const backboardPos = this.state.get().hoop.backboard.position;
+        const backboardSize = new THREE.Vector3(1.8, 1.05, 0.05);
+
+        if (this.checkBackboardCollision(ballPos, backboardPos, backboardSize)) {
+          this.handleBackboardCollision(ballPos, ballVel, backboardPos, backboardSize);
+        }
+
+        // Rim collision
+        const rimPos = this.state.get().hoop.rim.position;
+        this.handleRimCollision(ballPos, ballVel, rimPos);
+      }
+
+      checkBackboardCollision(ballPos, backboardPos, backboardSize) {
+        return ballPos.z < backboardPos.z + backboardSize.z/2 + PHYSICS.BALL_RADIUS && 
+               ballPos.z > backboardPos.z - backboardSize.z/2 - PHYSICS.BALL_RADIUS &&
+               ballPos.y > backboardPos.y - backboardSize.y/2 - PHYSICS.BALL_RADIUS &&
+               ballPos.y < backboardPos.y + backboardSize.y/2 + PHYSICS.BALL_RADIUS &&
+               ballPos.x > backboardPos.x - backboardSize.x/2 - PHYSICS.BALL_RADIUS &&
+               ballPos.x < backboardPos.x + backboardSize.x/2 + PHYSICS.BALL_RADIUS;
+      }
+
+      handleBackboardCollision(ballPos, ballVel, backboardPos, backboardSize) {
+        const distToFront = Math.abs(ballPos.z - (backboardPos.z + backboardSize.z/2));
+        const distToBack = Math.abs(ballPos.z - (backboardPos.z - backboardSize.z/2));
+        const distToTop = Math.abs(ballPos.y - (backboardPos.y + backboardSize.y/2));
+        const distToBottom = Math.abs(ballPos.y - (backboardPos.y - backboardSize.y/2));
+        const distToLeft = Math.abs(ballPos.x - (backboardPos.x - backboardSize.x/2));
+        const distToRight = Math.abs(ballPos.x - (backboardPos.x + backboardSize.x/2));
+
+        const minDist = Math.min(distToFront, distToBack, distToTop, distToBottom, distToLeft, distToRight);
+
+        if (this.state.get().lastCollision && Date.now() - this.state.get().lastCollision < 150) {
+          return;
+        }
+
+        this.state.set({ lastCollision: Date.now() });
+
+        if (minDist === distToFront || minDist === distToBack) {
+          ballVel.z = -ballVel.z * PHYSICS.BACKBOARD_BOUNCE_FACTOR;
+          ballPos.z = minDist === distToFront ? 
+            backboardPos.z + backboardSize.z/2 + PHYSICS.BALL_RADIUS :
+            backboardPos.z - backboardSize.z/2 - PHYSICS.BALL_RADIUS;
+        } else if (minDist === distToTop || minDist === distToBottom) {
+          ballVel.y = -ballVel.y * PHYSICS.BACKBOARD_BOUNCE_FACTOR;
+          ballPos.y = minDist === distToTop ?
+            backboardPos.y + backboardSize.y/2 + PHYSICS.BALL_RADIUS :
+            backboardPos.y - backboardSize.y/2 - PHYSICS.BALL_RADIUS;
+        } else if (minDist === distToLeft || minDist === distToRight) {
+          ballVel.x = -ballVel.x * PHYSICS.BACKBOARD_BOUNCE_FACTOR;
+          ballPos.x = minDist === distToLeft ?
+            backboardPos.x - backboardSize.x/2 - PHYSICS.BALL_RADIUS :
+            backboardPos.x + backboardSize.x/2 + PHYSICS.BALL_RADIUS;
+        }
+      }
+
+      handleRimCollision(ballPos, ballVel, rimPos) {
+        const rimDistXZ = Math.sqrt(
+          Math.pow(ballPos.x - rimPos.x, 2) + 
+          Math.pow(ballPos.z - rimPos.z, 2)
+        );
+
+        const distToRim = Math.abs(rimDistXZ - PHYSICS.BASKET_RADIUS);
+        const isAtRimHeight = Math.abs(ballPos.y - rimPos.y) < 0.1;
+
+        if (distToRim < PHYSICS.BALL_RADIUS && isAtRimHeight) {
+          if (this.state.get().lastCollision && Date.now() - this.state.get().lastCollision < 150) {
+            return;
+          }
+
+          this.state.set({ lastCollision: Date.now() });
+
+          const normalX = (ballPos.x - rimPos.x) / rimDistXZ;
+          const normalZ = (ballPos.z - rimPos.z) / rimDistXZ;
+
+          const dotProduct = ballVel.x * normalX + ballVel.z * normalZ;
+          ballVel.x = (ballVel.x - 2 * dotProduct * normalX) * PHYSICS.RIM_BOUNCE_FACTOR;
+          ballVel.z = (ballVel.z - 2 * dotProduct * normalZ) * PHYSICS.RIM_BOUNCE_FACTOR;
+
+          ballPos.x = rimPos.x + normalX * (PHYSICS.BASKET_RADIUS + PHYSICS.BALL_RADIUS);
+          ballPos.z = rimPos.z + normalZ * (PHYSICS.BASKET_RADIUS + PHYSICS.BALL_RADIUS);
+        }
+      }
+    }
+
+    // Input Manager
+    class InputManager {
+      constructor(gameState, camera, renderer) {
+        this.state = gameState;
+        this.camera = camera;
+        this.renderer = renderer;
+        this.raycaster = new THREE.Raycaster();
+        this.mouse = new THREE.Vector2();
+      }
+
+      handlePointerMove(event) {
+        if (!this.state.get().ball.isPositioning) return;
+
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.2);
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+
+        const intersection = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(plane, intersection);
+
+        const ball = this.state.get().ball;
+        ball.mesh.position.copy(intersection);
+        ball.body.position.copy(intersection);
+      }
+
+      handleKeyDown(event) {
+        if (event.code === 'Space') {
+          event.preventDefault();
+          const state = this.state.get();
+          if (state.ball.isShot) {
+            this.state.get().resetBall();
+          } else if (state.ball.isPositioning && !state.ball.isShot) {
+            this.state.get().startPowerCharge();
+          }
+        }
+      }
+
+      handleKeyUp(event) {
+        if (event.code === 'Space' && 
+            this.state.get().ui.isPowerCharging && 
+            !this.state.get().ball.isShot) {
+          event.preventDefault();
+          this.state.get().releaseShot();
+        }
+      }
+    }
+
+    // UI Manager
+    class UIManager {
+      constructor(gameState) {
+        console.log('UIManager constructor called');
+        this.state = gameState;
+        console.log('UI elements available:', {
+          attempts: !!UI.ATTEMPTS,
+          scored: !!UI.SCORED,
+          percentage: !!UI.PERCENTAGE
+        });
+      }
+
+      updateStats() {
+        console.log('updateStats called');
+        console.log('UI object available:', !!UI);
+        console.log('UI elements available:', {
+          attempts: !!UI.ATTEMPTS,
+          scored: !!UI.SCORED,
+          percentage: !!UI.PERCENTAGE
+        });
+        const stats = this.state.get().ui.stats;
+        console.log('Current stats:', stats);
+        UI.ATTEMPTS.textContent = stats.attempts;
+        UI.SCORED.textContent = stats.scored;
+        
+        const percentage = stats.attempts > 0
+          ? Math.round((stats.scored / stats.attempts) * 100)
+          : 0;
+          
+        UI.PERCENTAGE.textContent = `${percentage}%`;
+      }
+
+      updatePowerMeter(power) {
+        UI.POWER_METER.style.width = `${power}%`;
+      }
+    }
+
+    // Main Game Class
+    class BasketballGame {
+      constructor() {
+        console.log('BasketballGame constructor started');
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.clock = new THREE.Clock();
+
+        // Initialize visual guides
+        this.createVisualGuides();
+
+        console.log('Creating GameState');
+        this.state = new GameState(this);
+        console.log('Creating PhysicsEngine');
+        this.physics = new PhysicsEngine(this.state);
+        console.log('Creating InputManager');
+        this.input = new InputManager(this.state, this.camera, this.renderer);
+        console.log('Creating UIManager');
+        this.ui = new UIManager(this.state);
+        
+        // Set UI reference in PhysicsEngine after it's created
+        this.physics.setUI(this.ui);
+
+        this.setup();
+        this.animate();
+      }
+
+      createVisualGuides() {
+        // Create trajectory line
+        const trajectoryGeometry = new THREE.BufferGeometry();
+        const trajectoryMaterial = new THREE.LineBasicMaterial({ 
+          color: 0x00ff00,
+          transparent: true,
+          opacity: 0.5
+        });
+        this.trajectoryLine = new THREE.Line(trajectoryGeometry, trajectoryMaterial);
+        this.trajectoryLine.visible = false;
+        this.scene.add(this.trajectoryLine);
+
+        // Create sweet spot indicator
+        const sweetSpotGeometry = new THREE.CircleGeometry(0.15, 32);
+        const sweetSpotMaterial = new THREE.MeshBasicMaterial({
+          color: 0x00ff00,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide
+        });
+        this.sweetSpot = new THREE.Mesh(sweetSpotGeometry, sweetSpotMaterial);
+        this.sweetSpot.position.set(0, 3.05, -5.22);
+        this.sweetSpot.rotation.x = -Math.PI / 2;
+        this.sweetSpot.visible = false;
+        this.scene.add(this.sweetSpot);
+      }
+
+      setup() {
+        this.setupRenderer();
+        this.setupCamera();
+        this.setupEventListeners();
+        this.createCourt();
+        this.createBasketball();
+        this.createHoop();
+        this.setupLighting();
+      }
+
+      setupRenderer() {
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        document.getElementById('game-container').appendChild(this.renderer.domElement);
+
+        window.addEventListener('resize', () => {
+          this.camera.aspect = window.innerWidth / window.innerHeight;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      }
+
+      setupCamera() {
+        this.camera.position.set(0, 1.7, 2.5);
+        this.camera.lookAt(0, 2, -5);
+      }
+
+      setupEventListeners() {
+        this.renderer.domElement.addEventListener('pointermove', 
+          this.input.handlePointerMove.bind(this.input));
+        
+        document.addEventListener('keydown', 
+          this.input.handleKeyDown.bind(this.input));
+        
+        document.addEventListener('keyup', 
+          this.input.handleKeyUp.bind(this.input));
+        
+        UI.RESET_BUTTON.addEventListener('click', 
+          () => this.state.get().resetBall());
+      }
+
+      createCourt() {
+        // Sunset sky background
+        const skyGeometry = new THREE.SphereGeometry(50, 32, 32);
+        const sunsetColors = [
+          new THREE.Color(0xFF7F50), // Coral at horizon
+          new THREE.Color(0xFF6B6B), // Pink-orange middle
+          new THREE.Color(0x4B0082)  // Deep purple-blue at top
+        ];
+        
+        const skyMaterial = new THREE.ShaderMaterial({
+          uniforms: {
+            topColor: { value: sunsetColors[2] },
+            middleColor: { value: sunsetColors[1] },
+            bottomColor: { value: sunsetColors[0] }
+          },
+          vertexShader: `
+            varying vec3 vWorldPosition;
+            void main() {
+              vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+              vWorldPosition = worldPosition.xyz;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform vec3 topColor;
+            uniform vec3 middleColor;
+            uniform vec3 bottomColor;
+            varying vec3 vWorldPosition;
+            void main() {
+              float h = normalize(vWorldPosition).y;
+              vec3 color = mix(
+                mix(bottomColor, middleColor, smoothstep(-0.3, 0.0, h)),
+                topColor,
+                smoothstep(0.0, 0.3, h)
+              );
+              gl_FragColor = vec4(color, 1.0);
+            }
+          `,
+          side: THREE.BackSide
+        });
+        
+        const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+        this.scene.add(sky);
+
+        // Floor with sand texture
+        const floorGeometry = new THREE.PlaneGeometry(50, 50);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+          color: 0xF7D08A,
+          side: THREE.DoubleSide,
+          roughness: 0.8,
+          metalness: 0.1
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+        
+        // Court lines
+        const courtLines = new THREE.Group();
+        
+        // Free throw line
+        const ftLineGeometry = new THREE.PlaneGeometry(3.6, 0.05);
+        const lineMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const ftLine = new THREE.Mesh(ftLineGeometry, lineMaterial);
+        ftLine.rotation.x = -Math.PI / 2;
+        ftLine.position.set(0, 0.01, 1.8);
+        courtLines.add(ftLine);
+        
+        // Three-point line (arc)
+        const arcResolution = 32;
+        const arcRadius = 6.25;
+        const arcGeometry = new THREE.BufferGeometry();
+        const arcVertices = [];
+        
+        for (let i = 0; i <= arcResolution; i++) {
+          const theta = (Math.PI / 2) * (i / arcResolution) - Math.PI / 4;
+          const x = Math.cos(theta) * arcRadius;
+          const z = Math.sin(theta) * arcRadius + 1.25;
+          arcVertices.push(x, 0.01, z);
+        }
+        
+        arcGeometry.setAttribute('position', new THREE.Float32BufferAttribute(arcVertices, 3));
+        const arc = new THREE.Line(arcGeometry, lineMaterial);
+        courtLines.add(arc);
+        
+        this.scene.add(courtLines);
+
+        // Create palm trees
+        this.createPalmTrees();
+      }
+
+      createPalmTrees() {
+        const createPalmTree = (x, z, scale = 1, rotation = 0) => {
+          const trunkHeight = 4 + Math.random() * 2;
+          const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.2, 0.3, trunkHeight, 8),
+            new THREE.MeshStandardMaterial({ 
+              color: 0x8B4513,
+              roughness: 0.8,
+              metalness: 0.2
+            })
+          );
+          
+          trunk.position.set(x, trunkHeight/2, z);
+          trunk.rotation.y = rotation;
+          trunk.rotation.x = Math.random() * 0.2 - 0.1; // Slight random tilt
+          trunk.scale.multiplyScalar(scale);
+          trunk.castShadow = true;
+          this.scene.add(trunk);
+
+          // Create palm leaves with more variation
+          const numLeaves = 8 + Math.floor(Math.random() * 4);
+          for (let i = 0; i < numLeaves; i++) {
+            const leafLength = 2.5 + Math.random();
+            const leafWidth = 0.8 + Math.random() * 0.4;
+            
+            const leaf = new THREE.Mesh(
+              new THREE.PlaneGeometry(leafLength, leafWidth),
+              new THREE.MeshStandardMaterial({ 
+                color: new THREE.Color(0x2F4F2F).offsetHSL(0, 0, Math.random() * 0.2 - 0.1),
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+              })
+            );
+            
+            const angle = (i / numLeaves) * Math.PI * 2 + Math.random() * 0.5;
+            const radius = 1.2 + Math.random() * 0.5;
+            
+            leaf.position.set(
+              x + Math.cos(angle) * radius * scale,
+              trunkHeight * 0.9 + Math.random(),
+              z + Math.sin(angle) * radius * scale
+            );
+            
+            leaf.rotation.x = Math.PI / 4 + Math.random() * 0.4;
+            leaf.rotation.y = angle;
+            leaf.rotation.z = Math.PI / 6 + Math.random() * 0.4;
+            
+            leaf.scale.multiplyScalar(scale);
+            leaf.castShadow = true;
+            this.scene.add(leaf);
+          }
+        };
+
+        // Add more varied palm trees around the court
+        const treePositions = [
+          [-8, -8, 1.0], [8, -8, 1.1], [-8, 4, 0.9], [8, 4, 1.0],
+          [-12, -6, 0.8], [12, -6, 0.9], [-10, 0, 1.2], [10, 0, 0.8],
+          [-6, -12, 1.1], [6, -12, 0.9], [0, -15, 1.0], [-15, -15, 0.7],
+          [15, -15, 0.8], [-4, -6, 0.9], [4, -6, 1.1]
+        ];
+
+        treePositions.forEach(([x, z, scale]) => {
+          createPalmTree(x, z, scale, Math.random() * Math.PI * 2);
+        });
+      }
+
+      createBasketball() {
+        const geometry = new THREE.SphereGeometry(PHYSICS.BALL_RADIUS, 32, 32);
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xD95B33, // Basketball orange
+          roughness: 0.8,
+          map: this.createBasketballTexture()
+        });
+        
+        // Create the mesh
+        const ball = this.state.get().ball;
+        ball.mesh = new THREE.Mesh(geometry, material);
+        ball.mesh.castShadow = true;
+        
+        // Add to scene
+        this.scene.add(ball.mesh);
+        
+        // Reset ball position
+        this.resetBall();
+      }
+
+      createBasketballTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
+        // Fill with orange
+        ctx.fillStyle = '#D95B33';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw lines
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 6;
+        
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height / 2);
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+        
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        
+        // Additional curved lines
+        ctx.beginPath();
+        ctx.ellipse(canvas.width / 2, canvas.height / 2, 120, 230, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.ellipse(canvas.width / 2, canvas.height / 2, 230, 120, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      createHoop() {
+        // Backboard
+        const backboardGeometry = new THREE.BoxGeometry(1.8, 1.05, 0.05);
+        const backboardMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const backboard = new THREE.Mesh(backboardGeometry, backboardMaterial);
+        backboard.position.set(0, 3.05, -5.25);
+        backboard.castShadow = true;
+        backboard.receiveShadow = true;
+        this.scene.add(backboard);
+        
+        // Transparent pane for backboard
+        const glassGeometry = new THREE.BoxGeometry(1.75, 1, 0.02);
+        const glassMaterial = new THREE.MeshStandardMaterial({
+          color: 0xdddddd,
+          transparent: true,
+          opacity: 0.3,
+          roughness: 0.1
+        });
+        const glass = new THREE.Mesh(glassGeometry, glassMaterial);
+        glass.position.set(0, 3.05, -5.22);
+        this.scene.add(glass);
+        
+        // Rim (now wider)
+        const rimGeometry = new THREE.TorusGeometry(PHYSICS.BASKET_RADIUS, 0.02, 16, 32);
+        const rimMaterial = new THREE.MeshStandardMaterial({ color: 0xEC2224 });
+        const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+        rim.position.set(0, 3.05 - 0.15, -5.25 + 0.45);
+        rim.rotation.x = Math.PI / 2;
+        rim.castShadow = true;
+        this.scene.add(rim);
+        
+        // Hoop support
+        const supportGeometry = new THREE.BoxGeometry(0.05, 0.2, 0.45);
+        const supportMaterial = new THREE.MeshStandardMaterial({ color: 0xEC2224 });
+        const support = new THREE.Mesh(supportGeometry, supportMaterial);
+        support.position.set(0, 3.05 - 0.25, -5.25 + 0.225);
+        support.castShadow = true;
+        this.scene.add(support);
+        
+        // Simple net (adjusted for wider rim)
+        const netGeometry = new THREE.CylinderGeometry(PHYSICS.BASKET_RADIUS, PHYSICS.BASKET_RADIUS / 1.5, 0.4, 16, 8, true);
+        const netMaterial = new THREE.MeshStandardMaterial({
+          color: 0xdddddd,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.6,
+          wireframe: true
+        });
+        const net = new THREE.Mesh(netGeometry, netMaterial);
+        net.position.set(0, 3.05 - 0.15 - 0.2, -5.25 + 0.45);
+        this.scene.add(net);
+        
+        // Small square on backboard
+        const squareGeometry = new THREE.BoxGeometry(0.59, 0.59, 0.01);
+        const squareMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const square = new THREE.Mesh(squareGeometry, squareMaterial);
+        square.position.set(0, 3.05, -5.22);
+        this.scene.add(square);
+
+        // Update state with hoop objects
+        const hoop = this.state.get().hoop;
+        hoop.backboard = backboard;
+        hoop.rim = rim;
+        hoop.net = net;
+      }
+
+      setupLighting() {
+        // Ambient light - warm sunset color
+        const ambientLight = new THREE.AmbientLight(0xFFF0E6, 0.5);
+        this.scene.add(ambientLight);
+        
+        // Main sun light - orange-tinted for sunset
+        const sunLight = new THREE.DirectionalLight(0xFF7F50, 1.4);
+        sunLight.position.set(-5, 8, 5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 50;
+        sunLight.shadow.camera.left = -10;
+        sunLight.shadow.camera.right = 10;
+        sunLight.shadow.camera.top = 10;
+        sunLight.shadow.camera.bottom = -10;
+        this.scene.add(sunLight);
+        
+        // Fill light for shadows - blue tint for contrast
+        const fillLight = new THREE.PointLight(0x6B9AC4, 0.6);
+        fillLight.position.set(5, 3, 0);
+        this.scene.add(fillLight);
+      }
+
+      resetBall() {
+        const ball = this.state.get().ball;
+        ball.isShot = false;
+        ball.isReset = true;
+        ball.isPositioning = true;
+        
+        // Reset shot result
+        this.state.get().ui.shotResult = null;
+        
+        // Position the ball at the free throw line
+        const startPosition = new THREE.Vector3(0, 1.2, 1.8);
+        
+        // Set both mesh and physics body positions
+        ball.mesh.position.copy(startPosition);
+        ball.body.position.copy(startPosition);
+        ball.body.velocity.set(0, 0, 0);
+        
+        this.ui.updatePowerMeter(0);
+        
+        // Hide trajectory line and sweet spot
+        this.trajectoryLine.visible = false;
+        this.sweetSpot.visible = false;
+      }
+
+      startPowerCharge() {
+        const state = this.state.get();
+        if (!state.ball.isPositioning || state.ball.isShot) return;
+        
+        state.ui.isPowerCharging = true;
+        state.ui.power = 0;
+        state.ball.isPositioning = false;
+        state.ui.powerIncreasing = true;
+        
+        // Show trajectory line and sweet spot
+        this.trajectoryLine.visible = true;
+        this.sweetSpot.visible = true;
+        
+        // Power charging animation with oscillation
+        const updatePower = () => {
+          if (!state.ui.isPowerCharging) return;
+          
+          if (state.ui.powerIncreasing) {
+            state.ui.power += 2;
+            if (state.ui.power >= 100) {
+              state.ui.powerIncreasing = false;
+            }
+          } else {
+            state.ui.power -= 2;
+            if (state.ui.power <= 0) {
+              state.ui.powerIncreasing = true;
+            }
+          }
+          
+          this.ui.updatePowerMeter(state.ui.power);
+          this.updateTrajectoryLine(state.ui.power);
+          
+          requestAnimationFrame(updatePower);
+        };
+        
+        updatePower();
+      }
+
+      releaseShot() {
+        const state = this.state.get();
+        if (!state.ui.isPowerCharging || state.ball.isShot) return;
+        
+        state.ui.isPowerCharging = false;
+        
+        // Hide trajectory line and sweet spot
+        this.trajectoryLine.visible = false;
+        this.sweetSpot.visible = false;
+        
+        this.shootBasketball();
+      }
+
+      shootBasketball() {
+        const state = this.state.get();
+        if (state.ball.isShot) return;
+        
+        state.ball.isShot = true;
+        state.ball.isReset = false;
+        state.ui.stats.attempts++;
+        state.lastCollision = null;
+        this.ui.updateStats();
+        
+        // Reduced velocity range (7-10 m/s instead of 8-14)
+        const velocity = 7 + (state.ui.power / 100) * 3;
+        
+        const ballPos = state.ball.mesh.position;
+        const hoopPos = state.hoop.rim.position;
+        
+        const direction = new THREE.Vector3();
+        direction.subVectors(hoopPos, ballPos);
+        
+        const distanceToHoop = direction.length();
+        direction.normalize();
+        
+        // Reduced upward angle multiplier
+        direction.y += PHYSICS.SHOT_UPWARD_ANGLE * (0.7 + distanceToHoop * 0.05);
+        direction.normalize();
+        
+        state.ball.body.velocity.copy(direction).multiplyScalar(velocity);
+      }
+
+      updateTrajectoryLine(power) {
+        if (!this.trajectoryLine) return;
+
+        const state = this.state.get();
+        const ballPos = state.ball.mesh.position;
+        const hoopPos = state.hoop.rim.position;
+        
+        const direction = new THREE.Vector3();
+        direction.subVectors(hoopPos, ballPos);
+        
+        const distanceToHoop = direction.length();
+        direction.normalize();
+        
+        // Match the reduced upward angle from shootBasketball
+        direction.y += PHYSICS.SHOT_UPWARD_ANGLE * (0.7 + distanceToHoop * 0.05);
+        direction.normalize();
+        
+        // Match the reduced velocity range
+        const velocity = 7 + (power / 100) * 3;
+        
+        const points = [];
+        const numPoints = 30;
+        const timeStep = 0.1;
+        
+        for (let i = 0; i < numPoints; i++) {
+          const t = i * timeStep;
+          const x = ballPos.x + direction.x * velocity * t;
+          const y = ballPos.y + direction.y * velocity * t - 0.5 * 9.8 * t * t;
+          const z = ballPos.z + direction.z * velocity * t;
+          points.push(x, y, z);
+        }
+        
+        this.trajectoryLine.geometry.setAttribute('position', 
+          new THREE.Float32BufferAttribute(points, 3));
+      }
+
+      animate() {
+        requestAnimationFrame(this.animate.bind(this));
+        
+        const deltaTime = this.clock.getDelta();
+        this.physics.update(deltaTime);
+        this.physics.handleCollisions();
+        
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    // Initialize the game
+    new BasketballGame();
+  </script>
+</body>
+</html>

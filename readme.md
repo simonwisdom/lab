@@ -22,6 +22,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Fun
 
+[Bbal](https://lab.simonwisdom.com/bball) - Shoot a hoop in the tropics
+
 [Icy Tower](https://lab.simonwisdom.com/icy-tower-v1) - I've always wanted to recreate this game
 
 [Mold](https://lab.simonwisdom.com/mold) - Watch it grow
