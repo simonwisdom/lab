@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I Ching - Ritual Reading</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/common.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #f5f5f0 0%, #e8e8e0 100%);
+            min-height: 100vh;
+            color: #2c2c2c;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 30px 0 20px;
+            border-bottom: 1px solid #d0d0c8;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: normal;
+            letter-spacing: 2px;
+            color: #1a1a1a;
+        }
+
+        .date {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #444;
+        }
+
+        /* Main Sections */
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* Navigation */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+
+        .nav-tab {
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .nav-tab.active {
+            color: #1a1a1a;
+            border-bottom-color: #1a1a1a;
+        }
+
+        /* Cast Section */
+        .cast-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .hexagram-lines {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .line {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .line-number {
+            font-size: 12px;
+            color: #666;
+            width: 20px;
+        }
+
+        .line-display {
+            width: 120px;
+            height: 8px;
+            background: #1a1a1a;
+            position: relative;
+        }
+
+        .line-display.broken {
+            background: linear-gradient(to right, #1a1a1a 45%, transparent 45%, transparent 55%, #1a1a1a 55%);
+        }
+
+        .line-display.changing::after {
+            content: '●';
+            position: absolute;
+            right: -25px;
+            top: -4px;
+            color: #d4776d;
+            font-size: 16px;
+        }
+
+        .cast-button {
+            background: #2c2c2c;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+
+        .cast-button:hover {
+            background: #1a1a1a;
+            transform: translateY(-2px);
+        }
+
+        .throw-result {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #444;
+        }
+
+        /* Trigram Finder */
+        .trigram-selector {
+            margin-bottom: 30px;
+        }
+
+        .trigram-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        .trigram-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .trigram-card {
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .trigram-card:hover {
+            background: #fff;
+            border-color: #999;
+            transform: translateY(-2px);
+        }
+
+        .trigram-card.selected {
+            background: #2c2c2c;
+            color: white;
+            border-color: #2c2c2c;
+        }
+
+        .trigram-symbol {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .trigram-name {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Result Display */
+        .result-hexagram {
+            background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .hex-number {
+            font-size: 48px;
+            font-weight: 300;
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+
+        .hex-name {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .hex-chinese {
+            font-size: 14px;
+            color: #444;
+            margin-bottom: 20px;
+        }
+
+        .transformation {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .arrow {
+            color: #666;
+            font-size: 24px;
+        }
+
+        /* Reading Section */
+        .translation-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f0f0f0;
+            padding: 5px;
+            border-radius: 8px;
+        }
+
+        .trans-btn {
+            flex: 1;
+            padding: 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 12px;
+            transition: all 0.3s;
+            color: #555;
+        }
+
+        .trans-btn.active {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            color: #1a1a1a;
+        }
+
+        .reading-text {
+            line-height: 1.8;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .reading-text h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+            margin: 20px 0 10px;
+        }
+
+        .changing-lines {
+            border-top: 1px solid #e0e0e0;
+            padding-top: 20px;
+        }
+
+        .changing-line-item {
+            background: #fef9f5;
+            border-left: 3px solid #d4776d;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .line-position {
+            font-size: 12px;
+            color: #d4776d;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        /* Current Hexagram Display */
+        .current-hexagram-display {
+            background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .current-hexagram-display .hex-number {
+            font-size: 36px;
+            font-weight: 300;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .current-hexagram-display .hex-name {
+            font-size: 16px;
+            margin-bottom: 4px;
+            color: #333;
+        }
+
+        .current-hexagram-display .hex-chinese {
+            font-size: 12px;
+            color: #444;
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .trigram-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>I CHING</h1>
+            <div class="date">Thursday, August 7, 2025</div>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showSection('find')">Find</button>
+            <button class="nav-tab" onclick="showSection('reading')">Reading</button>
+            <button class="nav-tab" onclick="showSection('cast')">Cast</button>
+        </div>
+
+        <!-- Cast Section -->
+        <div id="cast" class="section">
+            <div class="cast-display">
+                <div class="hexagram-lines">
+                    <div class="line">
+                        <span class="line-number">1</span>
+                        <div class="line-display broken"></div>
+                    </div>
+                    <div class="line">
+                        <span class="line-number">2</span>
+                        <div class="line-display"></div>
+                    </div>
+                    <div class="line">
+                        <span class="line-number">3</span>
+                        <div class="line-display broken changing"></div>
+                    </div>
+                    <div class="line">
+                        <span class="line-number">4</span>
+                        <div class="line-display changing"></div>
+                    </div>
+                    <div class="line">
+                        <span class="line-number">5</span>
+                        <div class="line-display broken"></div>
+                    </div>
+                    <div class="line">
+                        <span class="line-number">6</span>
+                        <div class="line-display broken"></div>
+                    </div>
+                </div>
+                
+                <button class="cast-button">THROW COINS</button>
+                
+                <div class="throw-result">
+                    Line 1: 3 tails = Changing Yin (6)
+                </div>
+            </div>
+
+            <div class="transformation">
+                <div>
+                    <div style="font-size: 36px;">62</div>
+                    <div style="font-size: 12px; color: #666;">Small Exceeding</div>
+                </div>
+                <div class="arrow">→</div>
+                <div>
+                    <div style="font-size: 36px;">16</div>
+                    <div style="font-size: 12px; color: #666;">Enthusiasm</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Find Section -->
+        <div id="find" class="section active">
+            <div class="trigram-selector">
+                <div class="trigram-label">Lower Trigram</div>
+                <div class="trigram-grid" id="lower-trigram-grid">
+                    <div class="trigram-card" data-trigram="heaven">
+                        <div class="trigram-symbol">☰</div>
+                        <div class="trigram-name">Heaven</div>
+                    </div>
+                    <div class="trigram-card selected" data-trigram="earth">
+                        <div class="trigram-symbol">☷</div>
+                        <div class="trigram-name">Earth</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="water">
+                        <div class="trigram-symbol">☵</div>
+                        <div class="trigram-name">Water</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="fire">
+                        <div class="trigram-symbol">☲</div>
+                        <div class="trigram-name">Fire</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="thunder">
+                        <div class="trigram-symbol">☳</div>
+                        <div class="trigram-name">Thunder</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="wind">
+                        <div class="trigram-symbol">☴</div>
+                        <div class="trigram-name">Wind</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="mountain">
+                        <div class="trigram-symbol">☶</div>
+                        <div class="trigram-name">Mountain</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="lake">
+                        <div class="trigram-symbol">☱</div>
+                        <div class="trigram-name">Lake</div>
+                    </div>
+                </div>
+
+                <div class="trigram-label">Upper Trigram</div>
+                <div class="trigram-grid" id="upper-trigram-grid">
+                    <div class="trigram-card" data-trigram="heaven">
+                        <div class="trigram-symbol">☰</div>
+                        <div class="trigram-name">Heaven</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="earth">
+                        <div class="trigram-symbol">☷</div>
+                        <div class="trigram-name">Earth</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="water">
+                        <div class="trigram-symbol">☵</div>
+                        <div class="trigram-name">Water</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="fire">
+                        <div class="trigram-symbol">☲</div>
+                        <div class="trigram-name">Fire</div>
+                    </div>
+                    <div class="trigram-card selected" data-trigram="thunder">
+                        <div class="trigram-symbol">☳</div>
+                        <div class="trigram-name">Thunder</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="wind">
+                        <div class="trigram-symbol">☴</div>
+                        <div class="trigram-name">Wind</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="mountain">
+                        <div class="trigram-symbol">☶</div>
+                        <div class="trigram-name">Mountain</div>
+                    </div>
+                    <div class="trigram-card" data-trigram="lake">
+                        <div class="trigram-symbol">☱</div>
+                        <div class="trigram-name">Lake</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-hexagram" id="result-hexagram">
+                <div class="hex-number">16</div>
+                <div class="hex-name">Enthusiasm</div>
+                <div class="hex-chinese">豫 (yù)</div>
+            </div>
+        </div>
+
+        <!-- Reading Section -->
+        <div id="reading" class="section">
+            <div class="current-hexagram-display" id="current-hexagram-display">
+                <div class="hex-number">16</div>
+                <div class="hex-name">Enthusiasm</div>
+                <div class="hex-chinese">豫 (yù)</div>
+            </div>
+            
+            <div class="translation-toggle">
+                <button class="trans-btn active" data-translation="modern">Modern</button>
+                <button class="trans-btn" data-translation="wilhelm">Wilhelm</button>
+                <button class="trans-btn" data-translation="karcher">Karcher</button>
+            </div>
+
+            <div class="reading-text" id="reading-content">
+                <h3>Judgment</h3>
+                <p>Enthusiasm brings success. It furthers one to install helpers and to set armies marching. When thunder comes forth from the earth, ancient kings made music to honor merit, offering it to the Supreme Deity.</p>
+
+                <h3>Image</h3>
+                <p>Thunder comes resounding out of the earth. The image of Enthusiasm. Thus the ancient kings made music to honor merit, and offered it with grandeur to the Supreme Deity, inviting their ancestors to be present.</p>
+
+                <div class="changing-lines">
+                    <h3>Changing Lines</h3>
+                    
+                    <div class="changing-line-item">
+                        <div class="line-position">Third Line (Yang)</div>
+                        <p>Enthusiasm that looks upward creates remorse. Hesitation brings remorse. Looking to others for enthusiasm leads to regret. Move forward with your own conviction.</p>
+                    </div>
+
+                    <div class="changing-line-item">
+                        <div class="line-position">Fourth Line (Yin)</div>
+                        <p>The source of enthusiasm. He achieves great things. Doubt not. Friends gather around you as hairpins gather the hair. You are the catalyst for collective joy.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+// Config
+const CONFIG = {
+  DEFAULT_HEXAGRAM: 16,
+  DEFAULT_TRANSLATION: 'modern'
+};
+
+// State
+const state = {
+  data: {
+    currentHexagram: CONFIG.DEFAULT_HEXAGRAM,
+    currentTranslation: CONFIG.DEFAULT_TRANSLATION
+  },
+  ui: {
+    selectedLowerTrigram: 'earth',
+    selectedUpperTrigram: 'thunder'
+  }
+};
+
+// Core Functions
+function getHexagramByNumber(number) {
+  return wilhelmData[number.toString()];
+}
+
+function getHexagramByTrigrams(upperTrigram, lowerTrigram) {
+  const upperBinary = trigramToHexagram[upperTrigram].binary;
+  const lowerBinary = trigramToHexagram[lowerTrigram].binary;
+  const fullBinary = upperBinary + lowerBinary;
+  console.log(`Binary conversion: ${upperTrigram}(${upperBinary}) + ${lowerTrigram}(${lowerBinary}) = ${fullBinary}`);
+  const hexagramNumber = binaryToHexagram[fullBinary];
+  console.log(`Hexagram number: ${hexagramNumber}`);
+  return hexagramNumber ? getHexagramByNumber(hexagramNumber) : null;
+}
+
+function updateHexagramDisplay(hexagramData) {
+  if (!hexagramData) return;
+  
+  const resultDiv = document.getElementById('result-hexagram');
+  if (resultDiv) {
+    resultDiv.innerHTML = `
+      <div class="hex-number">${hexagramData.hex}</div>
+      <div class="hex-name">${hexagramData.english}</div>
+      <div class="hex-chinese">${hexagramData.trad_chinese} (${hexagramData.pinyin})</div>
+    `;
+  }
+}
+
+function updateReadingContent(hexagramData, translationType) {
+  const contentDiv = document.getElementById('reading-content');
+  const displayDiv = document.getElementById('current-hexagram-display');
+  if (!contentDiv || !hexagramData) return;
+  
+  // Update the hexagram display
+  if (displayDiv) {
+    displayDiv.innerHTML = `
+      <div class="hex-number">${hexagramData.hex}</div>
+      <div class="hex-name">${hexagramData.english}</div>
+      <div class="hex-chinese">${hexagramData.trad_chinese} (${hexagramData.pinyin})</div>
+    `;
+  }
+  
+  let content = '';
+  
+  if (translationType === 'wilhelm') {
+    // Wilhelm translation
+    content = `
+      <h3>Judgment</h3>
+      <p>${hexagramData.wilhelm_judgment.text}</p>
+      <p><em>${hexagramData.wilhelm_judgment.comments}</em></p>
+      
+      <h3>Image</h3>
+      <p>${hexagramData.wilhelm_image.text}</p>
+      <p><em>${hexagramData.wilhelm_image.comments}</em></p>
+    `;
+  } else if (translationType === 'modern') {
+    // Modern translation (placeholder)
+    content = `
+      <h3>Judgment</h3>
+      <p>${hexagramData.english} brings success. It furthers one to install helpers and to set armies marching.</p>
+      
+      <h3>Image</h3>
+      <p>The image of ${hexagramData.english}. Thus the ancient kings made music to honor merit, and offered it with grandeur to the Supreme Deity.</p>
+    `;
+  } else {
+    // Karcher translation (placeholder)
+    content = `
+      <h3>Judgment</h3>
+      <p>${hexagramData.english} - A modern interpretation focusing on personal growth and development.</p>
+      
+      <h3>Image</h3>
+      <p>This hexagram represents the energy of ${hexagramData.english} in your current situation.</p>
+    `;
+  }
+  
+  contentDiv.innerHTML = content;
+}
+
+// UI Handlers
+function showSection(sectionId) {
+  // Hide all sections
+  document.querySelectorAll('.section').forEach(section => {
+    section.classList.remove('active');
+  });
+  
+  // Remove active from all tabs
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // Show selected section
+  document.getElementById(sectionId).classList.add('active');
+  
+  // Mark active tab
+  event.target.classList.add('active');
+}
+
+function setupTrigramSelection() {
+  document.querySelectorAll('.trigram-card').forEach(card => {
+    card.addEventListener('click', function() {
+      const grid = this.closest('.trigram-grid');
+      grid.querySelectorAll('.trigram-card').forEach(c => c.classList.remove('selected'));
+      this.classList.add('selected');
+      
+      // Update hexagram based on selected trigrams
+      updateHexagramFromTrigrams();
+    });
+  });
+}
+
+function updateHexagramFromTrigrams() {
+  const lowerTrigram = document.querySelector('#lower-trigram-grid .trigram-card.selected').dataset.trigram;
+  const upperTrigram = document.querySelector('#upper-trigram-grid .trigram-card.selected').dataset.trigram;
+  
+  console.log(`Selected trigrams: Upper=${upperTrigram}, Lower=${lowerTrigram}`);
+  
+  const hexagramData = getHexagramByTrigrams(upperTrigram, lowerTrigram);
+  if (hexagramData) {
+    state.data.currentHexagram = hexagramData.hex;
+    console.log(`Found hexagram: ${hexagramData.hex} - ${hexagramData.english}`);
+    updateHexagramDisplay(hexagramData);
+    updateReadingContent(hexagramData, state.data.currentTranslation);
+  } else {
+    console.log(`No hexagram found for combination: ${upperTrigram} + ${lowerTrigram}`);
+  }
+}
+
+function setupTranslationToggle() {
+  document.querySelectorAll('.trans-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.trans-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      
+      state.data.currentTranslation = this.dataset.translation;
+      const hexagramData = getHexagramByNumber(state.data.currentHexagram);
+      updateReadingContent(hexagramData, state.data.currentTranslation);
+    });
+  });
+}
+
+// Init
+function init() {
+  // Import the Wilhelm translation data
+  import('./assets/iching_wilhelm_translation.js').then(module => {
+    window.wilhelmData = module.default;
+    
+    // Trigram to hexagram mapping
+    window.trigramToHexagram = {
+      'heaven': { symbol: '☰', binary: '111' },
+      'earth': { symbol: '☷', binary: '000' },
+      'water': { symbol: '☵', binary: '010' },
+      'fire': { symbol: '☲', binary: '101' },
+      'thunder': { symbol: '☳', binary: '100' },
+      'wind': { symbol: '☴', binary: '011' },
+      'mountain': { symbol: '☶', binary: '001' },
+      'lake': { symbol: '☱', binary: '110' }
+    };
+    
+    // Binary to hexagram number mapping
+    window.binaryToHexagram = {
+      '111111': 1, '000000': 2, '010001': 3, '100010': 4, '010111': 5, '111010': 6,
+      '000010': 7, '010000': 8, '110111': 9, '111011': 10, '000111': 11, '111000': 12,
+      '111101': 13, '101111': 14, '000100': 15, '001000': 16, '011001': 17, '100110': 18,
+      '000011': 19, '110000': 20, '101001': 21, '100101': 22, '100000': 23, '000001': 24,
+      '111001': 25, '100111': 26, '100001': 27, '011110': 28, '010010': 29, '101101': 30,
+      '011100': 31, '001110': 32, '001111': 34, '111100': 33, '000101': 36, '101000': 35,
+      '110101': 37, '101011': 38, '010100': 39, '001010': 40, '100011': 41, '110001': 42,
+      '011111': 43, '111110': 44, '011000': 45, '000110': 46, '011010': 47, '010110': 48,
+      '011101': 49, '101110': 50, '001001': 51, '100100': 52, '110100': 53, '001011': 54,
+      '001101': 55, '101100': 56, '110110': 57, '011011': 58, '110010': 59, '010011': 60,
+      '110011': 61, '001100': 62, '010101': 63, '101010': 64
+    };
+    
+    setupTrigramSelection();
+    setupTranslationToggle();
+    
+    // Set initial hexagram
+    const initialHexagram = getHexagramByNumber(state.data.currentHexagram);
+    updateHexagramDisplay(initialHexagram);
+    updateReadingContent(initialHexagram, state.data.currentTranslation);
+  }).catch(error => {
+    console.error('Failed to load translation data:', error);
+  });
+}
+
+// Make functions globally available
+window.showSection = showSection;
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
