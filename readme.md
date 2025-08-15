@@ -4,6 +4,8 @@ Experiments hosted on <a href="https://github.com/simonwisdom/lab">GitHub</a>
 
 ## Tools
 
+[I Ching](https://lab.simonwisdom.com/iching) - A tool to interpret I Ching hexagrams
+
 [Markdown downloader](https://lab.simonwisdom.com/md) - Prepend _lab.simonwisdom.com/md?u=_ in front of a URL to auto-download the page as markdown
 
 [Download Github Repo](https://lab.simonwisdom.com/github-repo-to-text) - Download an entire repo as a text file
