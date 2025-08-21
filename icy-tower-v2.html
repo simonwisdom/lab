@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>Icy Tower–Lite (Single-File)</title>
+<style>
+  /* --- Layout & Retro-ish Styling (no external assets) --- */
+  html, body { height: 100%; margin: 0; background:#0e0f1a; color:#e6e8ef; font: 14px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #game { display:block; width:100vw; height:100vh; image-rendering: pixelated; }
+  .hud {
+    position: fixed; left: 12px; top: 10px; z-index: 10;
+    background: rgba(10,12,22,.4); padding:8px 10px; border:1px solid rgba(255,255,255,.12);
+    border-radius: 6px; backdrop-filter: blur(2px);
+  }
+  .hud b { color:#88e; }
+  .center {
+    position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none;
+    text-align: center; font-weight: 600; text-shadow: 0 1px 0 #000;
+  }
+  .card {
+    pointer-events: auto;
+    background: rgba(12,14,24,.88); border:1px solid rgba(255,255,255,.15); border-radius: 10px; padding: 16px 18px; max-width: 520px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  .btn {
+    display:inline-block; margin-top: 10px; padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
+    background: linear-gradient(#1c1f35, #111425); color:#e6e8ef; text-decoration:none; cursor:pointer; user-select:none;
+  }
+  .muted { opacity: .75; font-weight: 400; }
+  .rightHud {
+    position: fixed; right: 12px; top: 10px; z-index: 10; display:flex; gap:8px; align-items:center;
+    background: rgba(10,12,22,.4); padding:8px 10px; border:1px solid rgba(255,255,255,.12);
+    border-radius: 6px; backdrop-filter: blur(2px);
+  }
+  #sfxToggle { accent-color:#88e; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" id="hud">
+  <div>Height: <b id="height">0</b></div>
+  <div>Combo: <b id="combo">0</b></div>
+  <div>Best: <b id="best">0</b></div>
+</div>
+
+<div class="rightHud">
+  <label class="muted"><input type="checkbox" id="sfxToggle" checked /> SFX</label>
+</div>
+
+<div class="center" id="overlay">
+  <div class="card">
+    <div style="font-size:18px; margin-bottom:6px;">ICY TOWER–LITE</div>
+    <div class="muted" style="margin-bottom:10px;">Jump up forever. Don’t fall below the screen.</div>
+    <div class="muted" style="text-align:left; margin:8px 0 10px;">
+      Controls:
+      <ul style="margin:6px 0 0 16px; padding:0;">
+        <li>Move: ← → or A D</li>
+        <li>Jump: ↑ / W / Space (coyote time + jump buffer + double jump)</li>
+        <li>Restart: R</li>
+      </ul>
+      Platform types: <b>static</b>, <b>moving</b> (horizontal), <b>one-touch</b> (disappears after landing).
+    </div>
+    <div class="muted">Press <b>Space</b> (or click) to start.</div>
+    <button class="btn" id="startBtn">Start</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Icy Tower–Lite (single file). Canvas 2D, no deps.
+   Mechanics:
+   - Upward world coordinates (y+ is upward). CameraY = world y value at bottom of the screen; camera never scrolls down.
+   - Platforms spawn above view; three types: static, moving(sine x), temporary(one-touch).
+   - Difficulty ramps with height: gaps ↑, platform width ↓, moving speed ↑, non-static probability ↑.
+   - Height = maxHeight achieved, with combo bonuses for fast landings.
+   - Game over if player falls below bottom of screen.
+   ============================================================ */
+
+(() => {
+  'use strict';
+
+  // --- Canvas & Context ---
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  // DPR-aware sizing
+  let DPR = Math.max(1, Math.min(2, (window.devicePixelRatio || 1)));
+  function resize() {
+    DPR = Math.max(1, Math.min(2, (window.devicePixelRatio || 1)));
+    const w = Math.max(360, window.innerWidth);
+    const h = Math.max(500, window.innerHeight);
+    canvas.width = Math.floor(w * DPR);
+    canvas.height = Math.floor(h * DPR);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  // --- HUD elements ---
+  const heightEl = document.getElementById('height');
+  const comboEl  = document.getElementById('combo');
+  const bestEl   = document.getElementById('best');
+  const overlay  = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const sfxToggle= document.getElementById('sfxToggle');
+
+  // --- Simple SFX via WebAudio (optional) ---
+  let audioCtx = null;
+  function beep(freq = 880, dur = 0.06, type = 'square', gain = 0.02) {
+    if (!sfxToggle.checked) return;
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch { return; }
+    }
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = gain;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    setTimeout(() => { o.stop(); }, Math.floor(dur * 1000));
+  }
+
+  // --- Helpers ---
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const irand = (a, b) => Math.floor(rand(a, b));
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const lerp  = (a, b, t) => a + (b - a) * t;
+
+  // --- Jump/axis globals ---
+  let prevJumpHeld = false;   // for variable jump + double-jump gating
+  let lastAxis = 0;           // for momentum bumps on direction change
+
+  // --- Jump reach helpers ---
+  const G = () => -player.gravity;                      // positive gravity
+  const maxJumpRise = () => (player.jumpVel**2)/(2*G()); // max vertical rise from a single jump
+  function timeToRise(dy) {                              // time to climb dy (0 < dy < maxJumpRise)
+    const vy = player.jumpVel, g = G();
+    const dyClamped = Math.max(0, Math.min(dy, maxJumpRise() - 1));
+    return (vy - Math.sqrt(Math.max(0, vy*vy - 2*g*dyClamped))) / g;
+  }
+  function horizReach(t) {                               // generous: assume you can hit max speed at takeoff
+    return player.maxSpeed * t;
+  }
+
+  // --- Input ---
+  const keys = new Set();
+  const preventKeys = new Set(['ArrowLeft','ArrowRight','ArrowUp',' ','Spacebar',' ']);
+  window.addEventListener('keydown', (e) => {
+    keys.add(e.key);
+    if (preventKeys.has(e.key)) e.preventDefault();
+    if (e.key === ' ') maybeStart();
+  });
+  window.addEventListener('keyup', (e) => keys.delete(e.key));
+
+  canvas.addEventListener('pointerdown', () => maybeStart());
+  startBtn.addEventListener('click', () => maybeStart());
+
+  // --- World / Game State ---
+  const STATE = { MENU:0, PLAY:1, OVER:2 };
+  let state = STATE.MENU;
+
+  // Camera: world y value that aligns with bottom of the screen.
+  let cameraY = 0;
+
+  // Player entity
+  const player = {
+    x: 200, y: 0, w: 26, h: 30,
+    vx: 0, vy: 0,
+    grounded: false,
+    onPlatform: null,
+    // feel parameters
+    moveAccel: 2200,
+    maxSpeed: 380,
+    airControl: 0.85,
+    friction: 800,
+    gravity: -2600,
+    jumpVel: 820,
+    // jump forgiveness
+    coyoteTime: 0.06, coyoteTimer: 0,
+    jumpBufferTime: 0.08, jumpBufferTimer: 0,
+    hasDouble: true, // allows one extra jump mid-air; resets on landing
+    // momentum system
+    momentum: 0,          // builds in air via left/right; boosts speed/jump
+    momentumMax: 1.25,    // cap
+  };
+
+  // Platforms
+  const platforms = [];
+  const PLATFORM_H = 14;
+
+  // Generation controls
+  let highestSpawnY = 0; // highest world y where we spawned a platform
+  let baseGapMin = 80, baseGapMax = 120;
+
+  // Height & combo
+  let maxHeight = 0;
+  let combo = 0;
+  let comboWindow = 1.4; // seconds between landings to keep streak
+  let lastLandTime = -1;
+  let comboScore = 0;
+  const BEST_KEY = 'icy-lite-best';
+  let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
+  bestEl.textContent = best;
+
+  // Timing
+  let lastTs = performance.now();
+
+  // --- Core Control ---
+  function resetGame() {
+    state = STATE.PLAY;
+    overlay.style.display = 'none';
+    cameraY = 0;
+
+    // Reset player
+    player.x = canvas.width / (2*DPR);
+    player.y = 40;
+    player.vx = 0; player.vy = 0;
+    player.grounded = false; player.onPlatform = null;
+    player.coyoteTimer = 0; player.jumpBufferTimer = 0;
+    player.hasDouble = true;
+    player.momentum = 0;
+
+    // Reset platforms
+    platforms.length = 0;
+    highestSpawnY = 0;
+
+    // Ground platform at y=0
+    platforms.push(makePlatform({
+      x: canvas.width/(2*DPR), y: 0,
+      w: canvas.width/(DPR) - 80, type:'static'
+    }));
+    highestSpawnY = 0;
+
+    // Spawn initial stack
+    spawnTo(cameraY + canvas.height / DPR + 400);
+
+    // Reset scoring
+    maxHeight = 0;
+    combo = 0;
+    comboScore = 0;
+    lastLandTime = -1;
+
+    // Small start beep
+    beep(660, 0.08, 'square', 0.025);
+  }
+
+  function maybeStart() {
+    if (state === STATE.MENU || state === STATE.OVER) resetGame();
+  }
+
+  function gameOver() {
+    state = STATE.OVER;
+    overlay.style.display = '';
+    overlay.querySelector('.card div').innerHTML = 'GAME OVER';
+    const card = overlay.querySelector('.card');
+    card.innerHTML = `
+      <div style="font-size:18px; margin-bottom:6px;">GAME OVER</div>
+      <div class="muted" style="margin-bottom:8px;">Height: <b>${Math.floor(maxHeight)}</b> &nbsp; Best: <b>${best}</b></div>
+      <div class="muted">Press <b>R</b> or <b>Space</b> to retry.</div>
+      <button class="btn" id="startBtn2">Restart</button>
+    `;
+    document.getElementById('startBtn2').addEventListener('click', () => resetGame());
+    beep(180, 0.09, 'sawtooth', 0.04);
+    beep(120, 0.12, 'sawtooth', 0.04);
+  }
+
+  // --- Platform Factory ---
+  function makePlatform({ x, y, w, type='static', move = null }) {
+    return {
+      x, y, w, h: PLATFORM_H, type,
+      // Moving config: sine-based horizontal motion
+      move: move ? { ...move } : null,
+      // Temporary platform state
+      touched: false, // once player lands, it will vanish
+      alive: true,
+      // for moving velocity carry
+      _prevX: x, _vx: 0,
+    };
+  }
+
+  // --- Difficulty curve based on height ---
+  function difficultyAt(h) {
+    const t = clamp(h / 3500, 0, 1); // reaches full difficulty around ~3500 px
+    return t;
+  }
+
+  // Spawn platforms up to target world y
+  function spawnTo(targetY) {
+    while (highestSpawnY < targetY) {
+      const prev = platforms[platforms.length - 1];      // last spawned platform
+      const d = difficultyAt(highestSpawnY);
+
+      // Early safety: first two above ground are easy & static
+      const spawnedAboveGround = Math.max(0, platforms.length - 1);
+      const easy = spawnedAboveGround < 2;
+
+      // Vertical gap limited by jump capability
+      const hMax = maxJumpRise();
+      const gapMin = easy ? 60 : lerp(65, 120, d);
+      const rawGapMax = easy ? 85 : lerp(95, 180, d);
+      const gapMax = Math.min(rawGapMax, hMax * 0.90);   // never exceed 90% of single-jump rise
+      const gap = rand(gapMin, gapMax);
+      const y = prev.y + gap;
+
+      // Width & type
+      const wMin = lerp(150, 80, d), wMax = lerp(210, 120, d);
+      const w = easy ? 180 : rand(wMin, wMax);
+
+      const pMoving = easy ? 0 : lerp(0.18, 0.42, d);
+      const pTemp   = easy ? 0 : lerp(0.10, 0.30, d);
+      const r = Math.random();
+      let type = 'static';
+      if (r < pMoving) type = 'moving'; else if (r < pMoving + pTemp) type = 'temporary';
+
+      // Horizontal reachability: limit x offset based on time to climb "gap"
+      const tRise = timeToRise(gap);
+      let dx = Math.max(80, horizReach(tRise) - 10);     // baseline 80px to avoid dead-ends
+      const W = canvas.width / DPR, margin = 50;
+      const screenMin = margin + w/2, screenMax = W - margin - w/2;
+
+      let minX = clamp(prev.x - dx, screenMin, screenMax);
+      let maxX = clamp(prev.x + dx, screenMin, screenMax);
+      if (maxX - minX < 10) {                            // squeezed by edges → allow tiny range around prev.x
+        const fudge = 12;
+        minX = clamp(prev.x - fudge, screenMin, screenMax);
+        maxX = clamp(prev.x + fudge, screenMin, screenMax);
+      }
+      const x = rand(minX, maxX);
+
+      let move = null;
+      if (type === 'moving') {
+        move = {
+          baseX: x,
+          range: easy ? 40 : rand(40, lerp(120, 220, d)),
+          speed: easy ? 0.9 : lerp(0.8, 2.2, d),
+          phase: Math.random() * Math.PI * 2
+        };
+      }
+
+      platforms.push(makePlatform({ x, y, w, type, move }));
+      highestSpawnY = y;
+    }
+  }
+
+  // --- Update Loop ---
+  function update(dt, t) {
+    if (state !== STATE.PLAY) return;
+
+    // Desired camera sticks player around 65% from top (i.e., 35% from bottom). Never scroll down.
+    const targetScreenY = canvas.height / DPR * 0.65;
+    const desiredCam = player.y - (canvas.height / DPR - targetScreenY);
+    cameraY = Math.max(cameraY, lerp(cameraY, desiredCam, 0.15));
+
+    // Always generate above the visible range + margin
+    spawnTo(cameraY + canvas.height / DPR + 600);
+
+    // Input horizontal - immediate sampling for zero-frame response
+    const inputAxis = (keys.has('ArrowRight')||keys.has('d')||keys.has('D')?1:0) - 
+                     (keys.has('ArrowLeft')||keys.has('a')||keys.has('A')?1:0);
+    const left  = keys.has('ArrowLeft') || keys.has('a') || keys.has('A');
+    const right = keys.has('ArrowRight')|| keys.has('d') || keys.has('D');
+    // treat any jump key as "held" for variable height
+    const jumpHeld = keys.has(' ') || keys.has('Spacebar') || keys.has('ArrowUp') || keys.has('w') || keys.has('W');
+    const justPressed = jumpHeld && !prevJumpHeld;     // rising edge
+
+    const axis = inputAxis; // Use immediate input for responsiveness
+
+    // Jump buffer only on fresh press (prevents auto double-jump while holding)
+    if (justPressed) player.jumpBufferTimer = player.jumpBufferTime;
+
+    // Build/decay momentum
+    if (!player.grounded) {
+      // grow while actively steering in air
+      if (axis !== 0) player.momentum += 2.0 * dt;
+      // bonus on quick direction flips in air
+      if (axis !== 0 && lastAxis !== 0 && axis !== lastAxis) player.momentum += 0.18;
+    } else {
+      // decay faster on ground; slight baseline decay always
+      player.momentum *= (1 - 2.0 * dt);
+    }
+    player.momentum = clamp(player.momentum, 0, player.momentumMax);
+    lastAxis = axis || lastAxis;
+
+    // Acceleration & max speed scale with momentum
+    const accel = player.moveAccel * (player.grounded ? 1 : player.airControl * (1 + 0.6 * player.momentum));
+    player.vx += axis * accel * dt;
+
+    // Friction when grounded & no input
+    if (player.grounded && !left && !right) {
+      const f = player.friction * dt;
+      if (Math.abs(player.vx) <= f) player.vx = 0;
+      else player.vx -= Math.sign(player.vx) * f;
+    }
+
+    const maxSpd = player.maxSpeed * (1 + 0.7 * player.momentum);
+    player.vx = clamp(player.vx, -maxSpd, maxSpd);
+
+
+
+    // Timers
+    if (player.coyoteTimer > 0) player.coyoteTimer -= dt;
+    if (player.jumpBufferTimer > 0) player.jumpBufferTimer -= dt;
+
+    // Ground/coyote jump (buffered), boosted slightly by momentum
+    if (player.jumpBufferTimer > 0 && (player.grounded || player.coyoteTimer > 0)) {
+      const j = player.jumpVel * (1 + 0.12 * player.momentum);
+      player.vy = j;
+      player.grounded = false;
+      player.onPlatform = null;
+      player.coyoteTimer = 0;
+      player.jumpBufferTimer = 0;
+      beep(1040, 0.05, 'square', 0.02);
+    }
+    // Double jump: requires a fresh press (no buffer), weaker than ground jump
+    else if (justPressed && player.hasDouble) {
+      const j = player.jumpVel * (0.82 + 0.06 * player.momentum);
+      player.vy = Math.max(player.vy, 0) + j;
+      player.hasDouble = false;
+      beep(1250, 0.05, 'triangle', 0.018);
+    }
+
+    // Variable jump height:
+    // 1) If the jump key was released while ascending, cut upward velocity (short hop).
+    if (!jumpHeld && prevJumpHeld && player.vy > 0) {
+      player.vy *= 0.52;
+    }
+    // 2) Apply gravity with modifiers: lighter while holding and rising; heavier when falling.
+    let g = player.gravity;
+    if (player.vy > 0) {
+      g *= (jumpHeld ? 0.60 : 1.00);   // hold to rise higher
+    } else {
+      g *= 1.15;                        // slightly faster fall
+    }
+    player.vy += g * dt;
+
+    // Previous position for collision sweep
+    const prevX = player.x;
+    const prevY = player.y;
+
+    // Integrate
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+
+    // World bounds (elastic walls)
+    const W = canvas.width / DPR;
+    const wall = 8; // visual wall thickness
+    const leftBound  = wall + player.w/2;
+    const rightBound = W - wall - player.w/2;
+
+    if (player.x < leftBound) {
+      player.x = leftBound;
+      player.vx = Math.abs(player.vx) * 0.75;  // bounce right
+      beep(520, 0.03, 'square', 0.012);
+    }
+    if (player.x > rightBound) {
+      player.x = rightBound;
+      player.vx = -Math.abs(player.vx) * 0.75; // bounce left
+      beep(520, 0.03, 'square', 0.012);
+    }
+
+    // Moving platforms update & carry velocity when standing
+    for (const p of platforms) {
+      if (!p.alive) continue;
+      if (p.move) {
+        p._prevX = p.x;
+        p.x = p.move.baseX + Math.sin(t * p.move.speed + p.move.phase) * p.move.range;
+        p._vx = (p.x - p._prevX) / dt;
+      } else {
+        p._vx = 0;
+      }
+    }
+
+    // Collision with platforms: land only when falling and crossing top surface
+    let landed = false;
+    if (player.vy <= 0) {
+      const playerHalfH = player.h / 2;
+      const prevBottom = prevY - playerHalfH;
+      const currBottom = player.y - playerHalfH;
+
+      for (const p of platforms) {
+        if (!p.alive) continue;
+
+        const top = p.y + p.h / 2;
+        const leftEdge = p.x - p.w / 2;
+        const rightEdge = p.x + p.w / 2;
+
+        // Horizontal overlap check (use player width as a point-like threshold for forgiving landings)
+        const pxLeft = player.x - player.w/2;
+        const pxRight = player.x + player.w/2;
+        const horizOverlap = (pxRight > leftEdge) && (pxLeft < rightEdge);
+
+        // Crossed the plane from above during this frame?
+        const crossed = prevBottom >= top && currBottom <= top;
+
+        if (horizOverlap && crossed) {
+          // Snap to surface, zero vertical speed, flag grounded
+          player.y = top + playerHalfH;
+          player.vy = 0;
+          player.grounded = true;
+          player.onPlatform = p;
+          player.hasDouble = true;
+          // Carry horizontal velocity from moving platforms when grounded
+          if (p._vx) player.x += p._vx * dt * 0.85;
+
+          // Momentum damp on landing
+          player.momentum *= 0.80; // keep more momentum on landing
+
+          // Coyote refresh
+          player.coyoteTimer = player.coyoteTime;
+
+          // Combo / scoring on landing
+          const now = performance.now() * 0.001;
+          if (lastLandTime > 0 && (now - lastLandTime) <= comboWindow) {
+            combo += 1;
+            comboScore += Math.floor(5 * combo); // escalating bonus
+            if (combo % 5 === 0) beep(1400, 0.04, 'square', 0.025);
+          } else {
+            combo = 1; // landing starts/refreshes a streak
+          }
+          lastLandTime = now;
+          landed = true;
+
+          // Temporary platforms vanish after touch
+          if (p.type === 'temporary' && !p.touched) {
+            p.touched = true;
+            // Fade-out quickly; mark dead after short delay
+            setTimeout(() => { p.alive = false; }, 180);
+          }
+
+          break; // land on first valid platform only
+        }
+      }
+    }
+
+    if (!landed) {
+      // Left ground this frame? start coyote if we were grounded
+      if (player.grounded) player.coyoteTimer = player.coyoteTime;
+      player.grounded = false;
+      player.onPlatform = null;
+    }
+
+      // Update height
+  maxHeight = Math.max(maxHeight, player.y);
+
+    // Cull platforms far below view
+    const killY = cameraY - 200;
+    for (let i = platforms.length - 1; i >= 0; i--) {
+      if (!platforms[i].alive || platforms[i].y < killY) {
+        platforms.splice(i, 1);
+      }
+    }
+
+    // Game Over if player falls below bottom (+ grace)
+    const screenY = (canvas.height / DPR) - (player.y - cameraY);
+    if (screenY > (canvas.height / DPR) + 60) {
+      // Save best
+      if (Math.floor(maxHeight) > best) {
+        best = Math.floor(maxHeight);
+        localStorage.setItem(BEST_KEY, String(best));
+      }
+      bestEl.textContent = best;
+      gameOver();
+    }
+
+    // Update HUD (minimal cost)
+    heightEl.textContent = Math.floor(maxHeight);
+    comboEl.textContent = combo;
+    bestEl.textContent = best;
+
+    // Restart hotkey
+    if (keys.has('r') || keys.has('R')) resetGame();
+
+    // Update jump state for next frame
+    prevJumpHeld = jumpHeld;
+  }
+
+  // --- Draw ---
+  function draw(t) {
+    // Background gradient + subtly moving stars
+    const W = canvas.width / DPR, H = canvas.height / DPR;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#171a2a');
+    g.addColorStop(1, '#0e1020');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // Tower side walls
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    ctx.fillRect(0, 0, 8, H);
+    ctx.fillRect(W-8, 0, 8, H);
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(8, 0, 1, H);
+    ctx.fillRect(W-9, 0, 1, H);
+
+    // Tiny stars for ambiance
+    ctx.globalAlpha = 0.25;
+    for (let i = 0; i < 32; i++) {
+      const sx = (i * 137) % W;
+      const syWorld = Math.floor((i * 271 + Math.floor(cameraY)) % 400) - 200 + cameraY;
+      const sy = H - (syWorld - cameraY);
+      ctx.fillRect((sx + (Math.sin(t*0.3 + i)*8))|0, sy|0, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw platforms
+    for (const p of platforms) {
+      if (!p.alive) continue;
+
+      const px = p.x, py = p.y;
+      const sx = px - p.w/2;
+      const sy = H - (py - cameraY) - p.h/2;
+
+      // Type-based color
+      let col = '#7ad';
+      if (p.type === 'moving') col = '#a7e';
+      if (p.type === 'temporary') col = p.touched ? '#a44' : '#e66';
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,.26)';
+      ctx.fillRect(sx+2, sy+3, p.w, p.h);
+
+      // Main
+      ctx.fillStyle = col;
+      ctx.fillRect(sx, sy, p.w, p.h);
+
+      // Trim line
+      ctx.fillStyle = 'rgba(255,255,255,.14)';
+      ctx.fillRect(sx, sy, p.w, 2);
+    }
+
+    // Draw player (simple capsule)
+    const psx = player.x;
+    const psy = H - (player.y - cameraY);
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.beginPath();
+    ctx.ellipse(psx+3, psy+6, player.w*0.55, 6, 0, 0, Math.PI*2);
+    ctx.fill();
+    // body
+    ctx.fillStyle = '#f0f3ff';
+    roundRect(ctx, psx - player.w/2, psy - player.h/2, player.w, player.h, 6);
+    ctx.fillStyle = '#88e';
+    ctx.fillRect(psx - player.w/2, psy - player.h/2, player.w, 6);
+
+    // On-screen bottom line for reference (optional)
+    // ctx.fillStyle = 'rgba(255,255,255,.06)';
+    // ctx.fillRect(0, H-1, W, 1);
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.lineTo(x+w-r, y);
+    ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+    ctx.lineTo(x+w, y+h-r);
+    ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+    ctx.lineTo(x+r, y+h);
+    ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+    ctx.lineTo(x, y+r);
+    ctx.quadraticCurveTo(x, y, x+r, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // --- Main Loop ---
+  function loop(ts) {
+    const t = ts * 0.001;
+    let dt = (ts - lastTs) * 0.001;
+    lastTs = ts;
+    dt = Math.min(0.033, dt); // clamp to ~30ms to avoid tunneling on stalls
+
+    update(dt, t);
+    draw(t);
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // --- Initial overlay remains until start ---
+  overlay.style.display = '';
+
+  // --- Minimal menu text wiring ---
+  overlay.querySelector('.card').addEventListener('click', (e) => {
+    if (state !== STATE.PLAY) resetGame();
+  });
+
+  // --- Validation Notes (quick self-checks) ---
+  // 1) Platforms spawn while highestSpawnY < cameraY + H + margin; camera never decreases => infinite climb achievable.
+  // 2) Collisions require descending + crossing top plane + horizontal overlap => no "underside sticking".
+  // 3) Game over when screenY > H + 60; camera doesn't follow down => falling below visible area ends run.
+
+})();
+</script>
+</body>
+</html>
