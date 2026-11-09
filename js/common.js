@@ -1,5 +1,3 @@
-import { addFeedbackSystem } from './feedback.js';
-
 function addAnalytics() {
   const script = document.createElement('script');
   script.async = true;
@@ -53,8 +51,6 @@ function addFooter() {
         <a href="https://lab.simonwisdom.com">lab.simonwisdom.com</a>
       </p>
     `;
-    
-    addFeedbackSystem();
   }
 
   if (document.readyState === 'loading') {
